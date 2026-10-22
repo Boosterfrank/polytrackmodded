@@ -553,6 +553,16 @@ class PolyModLoaderImpl {
     get backendUrl() {
         return __classPrivateFieldGet(this, _PolyModLoaderImpl_backendUrl, "f");
     }
+    /**
+     * Map a URL on PolyTrack's official backend onto {@link backendUrl}, so URLs the backend hands out
+     * (e.g. the Track of the Week's track, thumbnail and cover) go through the proxy as well.
+     * Other URLs are returned unchanged.
+     */
+    rewriteBackendUrl(url) {
+        if (typeof url !== "string" || !url.startsWith(OFFICIAL_BACKEND_URL))
+            return url;
+        return (__classPrivateFieldGet(this, _PolyModLoaderImpl_backendUrl, "f") + url.slice(OFFICIAL_BACKEND_URL.length));
+    }
     initStorage(localStorage) {
         this.localStorage = localStorage;
         this.polyDb = new PolyDBImpl(this);
@@ -2716,6 +2726,15 @@ _PolyModLoaderImpl_polyVersion = new WeakMap(), _PolyModLoaderImpl_allMods = new
             tokenStart: `"${OFFICIAL_BACKEND_URL}" +`,
             tokenEnd: `"${OFFICIAL_BACKEND_URL}" +`,
             func: `ActivePolyModLoader.backendUrl +`
+        });
+        // The Track of the Week response carries absolute URLs on the official backend; map them too.
+        this.registerGlobalMixin({
+            type: MixinType.REPLACEBETWEEN,
+            tokenStart: `thumbnailUrl: a.thumbnailUrl + "?version=0.6.3",`,
+            tokenEnd: `trackUrl: a.trackUrl + "?version=0.6.3",`,
+            func: `thumbnailUrl: ActivePolyModLoader.rewriteBackendUrl(a.thumbnailUrl) + "?version=0.6.3",
+                                coverUrl: ActivePolyModLoader.rewriteBackendUrl(l),
+                                trackUrl: ActivePolyModLoader.rewriteBackendUrl(a.trackUrl) + "?version=0.6.3",`
         });
     }
     // First launch: open the garage instead of the tutorial track. The "tutorial" startup action

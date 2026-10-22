@@ -108,6 +108,8 @@ export interface PolyModLoader {
     get pmlVersion(): string;
     /** Base URL (ending with a slash) of the backend used for leaderboards, profiles and multiplayer signaling. */
     get backendUrl(): string;
+    /** Map a URL on PolyTrack's official backend onto {@link backendUrl}; other URLs are returned unchanged. */
+    rewriteBackendUrl<T>(url: T): T;
     
     initStorage(localStorage: Storage): void;
     importMods(): Promise<void>;

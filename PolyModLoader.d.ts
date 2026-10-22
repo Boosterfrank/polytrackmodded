@@ -40,6 +40,12 @@ declare class PolyModLoaderImpl implements PolyModLoader {
      * and multiplayer signaling: PolyTrack's official backend or a same-origin proxy for it.
      */
     get backendUrl(): string;
+    /**
+     * Map a URL on PolyTrack's official backend onto {@link backendUrl}, so URLs the backend hands out
+     * (e.g. the Track of the Week's track, thumbnail and cover) go through the proxy as well.
+     * Other URLs are returned unchanged.
+     */
+    rewriteBackendUrl<T>(url: T): T;
     localStorage: Storage | undefined;
     initStorage(localStorage: Storage): void;
     importMods(): Promise<void>;
