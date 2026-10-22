@@ -35,7 +35,7 @@ GitHub Pages serves the static files and a Worker does the proxying:
    window.polyModLoaderConfig = { backendUrl: "https://polytrack-backend-proxy.<your-subdomain>.workers.dev/" };
    ```
 
-3. Enable *Settings → Pages → Source: GitHub Actions*; `.github/workflows/pages.yml` publishes the `main` branch (or run it manually).
+3. Enable *Settings → Pages → Source: GitHub Actions*; `.github/workflows/pages.yml` publishes the repository's default branch on every push (or run it manually for any branch).
 
 `proxy/worker.js` is the same proxy as the Pages Function in Worker form; set the `POLYTRACK_ORIGIN` variable in `proxy/wrangler.toml` to change the Origin it sends. Without a configured proxy, GitHub Pages cannot run server code, so multiplayer and leaderboards only work if kodub's backend accepts your origin.
 

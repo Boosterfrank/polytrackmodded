@@ -4,5 +4,5 @@ window.polyModLoaderConfig = {
   // PolyTrack's backend (see proxy/worker.js), e.g. "https://polytrack-backend-proxy.you.workers.dev/".
   // Leave it empty to auto-detect a proxy at ./api/ (Cloudflare Pages deployments) and otherwise
   // talk to PolyTrack's official backend directly.
-  backendUrl: "",
+  backendUrl: "https://polytrackmodded.qubiplex.workers.dev/",
 };

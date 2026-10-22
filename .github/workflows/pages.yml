@@ -4,7 +4,6 @@ name: Deploy to GitHub Pages
 # (see functions/api/[[path]].js and README.md), so the game talks to PolyTrack's backend directly.
 on:
   push:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -18,6 +17,8 @@ concurrency:
 
 jobs:
   deploy:
+    # Only the repository's default branch is published (any branch can be deployed by hand).
+    if: github.event_name == 'workflow_dispatch' || github.ref_name == github.event.repository.default_branch
     runs-on: ubuntu-latest
     environment:
       name: github-pages
