@@ -24,19 +24,24 @@ Everything else (mod library, settings, keybinds, mixin API, desktop packaging) 
 
 The proxy only forwards paths below `/v6/` of the official backend and rewrites the `Origin` header to the one the PolyModLoader desktop app uses. Set the `POLYTRACK_ORIGIN` environment variable on the Pages project to send a different origin. It forwards the game's own requests only; kodub's [terms](https://www.kodub.com/terms/polytrack) still apply, so do not point automated tools at it.
 
-### GitHub Pages (static only)
+### GitHub Pages + Cloudflare Worker
 
-Enable *Settings → Pages → Source: GitHub Actions*. `.github/workflows/pages.yml` publishes the `main` branch (or run it manually). GitHub Pages cannot run the proxy, so multiplayer and leaderboards only work there if kodub's backend accepts your origin.
+GitHub Pages serves the static files and a Worker does the proxying:
+
+1. Deploy the Worker in `proxy/` (`cd proxy && npx wrangler deploy`, or *Workers & Pages → Create → Workers → Connect to Git* with root directory `proxy`). It is reachable at `https://polytrack-backend-proxy.<your-subdomain>.workers.dev/`.
+2. Put that URL into `pml-config.js`:
+
+   ```js
+   window.polyModLoaderConfig = { backendUrl: "https://polytrack-backend-proxy.<your-subdomain>.workers.dev/" };
+   ```
+
+3. Enable *Settings → Pages → Source: GitHub Actions*; `.github/workflows/pages.yml` publishes the `main` branch (or run it manually).
+
+`proxy/worker.js` is the same proxy as the Pages Function in Worker form; set the `POLYTRACK_ORIGIN` variable in `proxy/wrangler.toml` to change the Origin it sends. Without a configured proxy, GitHub Pages cannot run server code, so multiplayer and leaderboards only work if kodub's backend accepts your origin.
 
 ### Anywhere else
 
-Any static web server works; for local development run `npm install` and `npm run dev` (serves the folder on port 8080). To use a proxy hosted somewhere else, define the backend URL before `main.bundle.js` loads, for example with an inline script in `index.html`:
-
-```html
-<script>window.polyModLoaderConfig = { backendUrl: "https://your-proxy.example.com/" };</script>
-```
-
-The proxy must answer `GET <backendUrl>` with status 204 and the header `X-PolyTrack-Proxy: 1` to be auto-detected at `./api/`; an explicitly configured URL is used without that probe.
+Any static web server works; for local development run `npm install` and `npm run dev` (serves the folder on port 8080). A configured `backendUrl` in `pml-config.js` is used as is; when it is empty, PolyModLoader probes `./api/` and uses it if the response carries `X-PolyTrack-Proxy: 1`, and otherwise talks to the official backend.
 
 ## Desktop app
 

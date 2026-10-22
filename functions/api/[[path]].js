@@ -9,6 +9,7 @@
  * Only paths below /v6/ of the official backend are forwarded, so this is not an open proxy.
  * Set the POLYTRACK_ORIGIN environment variable on the Pages project to change the Origin header
  * that is sent upstream (default: the origin the PolyModLoader desktop app uses).
+ * Keep in sync with proxy/worker.js, the same proxy as a standalone Worker.
  */
 const UPSTREAM = "https://vps.kodub.com/";
 const DEFAULT_ORIGIN = "https://app-polytrack-desktop.polymodloader.com";
@@ -20,7 +21,7 @@ export async function onRequest({ request, params, env }) {
   const path = segments.join("/");
 
   // Probe used by PolyModLoader.js to detect the proxy.
-  if (path === "") return new Response(null, { status: 204, headers: PROBE_HEADERS });
+  if (path === "") return new Response(null, { status: 204, headers: { ...PROBE_HEADERS, ...corsHeaders(request) } });
   if (!path.startsWith(ALLOWED_PREFIX)) return new Response("Not found", { status: 404 });
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders(request) });
 

@@ -1,0 +1,10 @@
+# Cloudflare Worker for the PolyTrack backend proxy. Deploy with `npx wrangler deploy` from this
+# folder (or connect the repository in the Cloudflare dashboard with root directory `proxy`).
+# The Worker is then reachable at https://polytrack-backend-proxy.<your-subdomain>.workers.dev/
+name = "polytrack-backend-proxy"
+main = "worker.js"
+compatibility_date = "2025-01-01"
+
+# Origin header sent to vps.kodub.com. Uncomment to override the default in worker.js.
+# [vars]
+# POLYTRACK_ORIGIN = "https://app-polytrack-desktop.polymodloader.com"
