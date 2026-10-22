@@ -33,8 +33,13 @@ declare class PolyModLoaderImpl implements PolyModLoader {
     rawSemver: any;
     polyDb: PolyDB;
     errorMixins: MixinArgs[];
-    constructor(polyVersion: string, pmlVersion: string);
+    constructor(polyVersion: string, pmlVersion: string, backendUrl: string);
     get polyVersion(): string;
+    /**
+     * Base URL (ending with a slash) of the backend the game talks to for leaderboards, user profiles
+     * and multiplayer signaling: PolyTrack's official backend or a same-origin proxy for it.
+     */
+    get backendUrl(): string;
     localStorage: Storage | undefined;
     initStorage(localStorage: Storage): void;
     importMods(): Promise<void>;

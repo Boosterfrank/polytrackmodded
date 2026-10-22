@@ -106,6 +106,8 @@ export interface PolyModLoader {
 
     get polyVersion(): string;
     get pmlVersion(): string;
+    /** Base URL (ending with a slash) of the backend used for leaderboards, profiles and multiplayer signaling. */
+    get backendUrl(): string;
     
     initStorage(localStorage: Storage): void;
     importMods(): Promise<void>;

@@ -137,7 +137,54 @@ async function resolvePmlVersion() {
   return "web";
 }
 
-const pmlversion = await resolvePmlVersion();
+/** PolyTrack's official backend (leaderboards, user profiles and multiplayer signaling). */
+const OFFICIAL_BACKEND_URL = "https://vps.kodub.com/";
+/** Where a same-origin backend proxy is looked for, relative to the page (see functions/api/[[path]].js). */
+const BACKEND_PROXY_PATH = "api/";
+/**
+ * Mods that ship with this PolyModLoader distribution. They are added to the player's mod list
+ * automatically (see `PolyModLoaderImpl.getPolyModsStorage`); players can still unload or remove
+ * them afterwards and that choice is remembered.
+ */
+const BUNDLED_MODS: Array<{ base: string, version: string, loaded: boolean }> = [
+  {
+    // PolyCup: live cups for 2 to 8 racers in multiplayer lobbies - https://github.com/Prawnfoot05/PolyCup
+    base: "https://cdn.polymodloader.com/gh/Prawnfoot05/PolyCup/main/dist",
+    version: "latest",
+    loaded: true
+  }
+];
+/** localStorage key remembering which bundled mods have already been added to the mod list. */
+const BUNDLED_MODS_STORAGE_KEY = "pmlBundledMods";
+
+/**
+ * Picks the base URL the game uses for leaderboards, user profiles and multiplayer signaling.
+ *
+ * PolyTrack's backend only answers requests whose `Origin` is one of the game's own origins (the
+ * desktop app rewrites the header in electron/main.js), so a web build hosted on another domain
+ * talks to it through a same-origin proxy when one is deployed next to the page.
+ *
+ * Resolution order: `window.polyModLoaderConfig.backendUrl`, then the proxy at `./api/` if it
+ * answers the probe, then the official backend.
+ */
+async function resolveBackendUrl(): Promise<string> {
+  // @ts-ignore
+  const configured = window.polyModLoaderConfig?.backendUrl;
+  if (typeof configured === "string" && configured.length > 0) {
+    return configured.endsWith("/") ? configured : configured + "/";
+  }
+  if (isApp()) return OFFICIAL_BACKEND_URL;
+  try {
+    const proxyUrl = new URL(BACKEND_PROXY_PATH, document.baseURI).href;
+    const res = await fetch(proxyUrl, { cache: "no-store", signal: AbortSignal.timeout(3000) });
+    if (res.ok && res.headers.get("X-PolyTrack-Proxy") === "1") return proxyUrl;
+  } catch (e) {
+    console.warn("[PML] Backend proxy probe failed, using the official backend directly:", e);
+  }
+  return OFFICIAL_BACKEND_URL;
+}
+
+const [pmlversion, backendUrl] = await Promise.all([resolvePmlVersion(), resolveBackendUrl()]);
 
 Object.defineProperty(window, "pmlversion", {
   get() { return pmlversion; },
@@ -424,15 +471,18 @@ class PolyModLoaderImpl implements PolyModLoader {
   #latestBinding: number;
 
   #pmlVersion: string;
+  #backendUrl: string;
 
-  constructor(polyVersion: string, pmlVersion: string) {
+  constructor(polyVersion: string, pmlVersion: string, backendUrl: string) {
     this.#pmlVersion = pmlVersion;
+    this.#backendUrl = backendUrl;
     /** @type {string} */
     this.#polyVersion = polyVersion;
     /** @type {PolyMod[]} */
     this.#allMods = [];
 
     console.log("[PML] PolyModLoader initialized, version:", pmlVersion);
+    console.log("[PML] Backend URL:", backendUrl);
     if(pmlVersion === "web") {
       this.errorMixins.push({
         type: MixinType.INSERT,
@@ -497,6 +547,13 @@ class PolyModLoaderImpl implements PolyModLoader {
   }
   get polyVersion(): string {
     return this.#polyVersion; // Why is this even private lmfao
+  }
+  /**
+   * Base URL (ending with a slash) of the backend the game talks to for leaderboards, user profiles
+   * and multiplayer signaling: PolyTrack's official backend or a same-origin proxy for it.
+   */
+  get backendUrl(): string {
+    return this.#backendUrl;
   }
   localStorage: Storage | undefined;
   #polyModUrls: Array<{ base: string, version: string, loaded: boolean }> | undefined;
@@ -792,6 +849,10 @@ class PolyModLoaderImpl implements PolyModLoader {
     const polyModsStorage = this.localStorage?.getItem("polyMods");
     if (polyModsStorage) {
       this.#polyModUrls = JSON.parse(polyModsStorage);
+      // An existing mod list (e.g. a profile from before this distribution) gets the bundled mods added once.
+      if (this.#addBundledMods(false)) {
+        this.localStorage?.setItem("polyMods", JSON.stringify(this.#polyModUrls));
+      }
     } else {
       this.#polyModUrls = [
         {
@@ -800,9 +861,44 @@ class PolyModLoaderImpl implements PolyModLoader {
           "loaded": true
         }
       ];
+      // A fresh (or cleared) mod list always starts out with the bundled mods.
+      this.#addBundledMods(true);
       this.localStorage?.setItem("polyMods", JSON.stringify(this.#polyModUrls));
     }
     return this.#polyModUrls;
+  }
+  /**
+   * Add the mods bundled with this distribution ({@link BUNDLED_MODS}) to the mod list.
+   *
+   * Each bundled mod is only added once per browser profile, so removing it through the mod
+   * library sticks; clearing the mod list starts over.
+   *
+   * @param {boolean} reset - Forget which bundled mods were added before (used for a fresh mod list).
+   * @returns {boolean}     - Whether the mod list changed.
+   */
+  #addBundledMods(reset: boolean): boolean {
+    if (!this.#polyModUrls) return false;
+    const sameBase = (a: string, b: string) => a.replace(/\/+$/, "") === b.replace(/\/+$/, "");
+    let added: Array<string> = [];
+    if (!reset) {
+      try {
+        const stored = JSON.parse(this.localStorage?.getItem(BUNDLED_MODS_STORAGE_KEY) || "[]");
+        if (Array.isArray(stored)) added = stored.filter(entry => typeof entry === "string");
+      } catch (err) {
+        console.warn("[PML] Couldn't read the bundled mod list, adding the bundled mods again:", err);
+      }
+    }
+    let changed = false;
+    for (const bundledMod of BUNDLED_MODS) {
+      if (added.some(base => sameBase(base, bundledMod.base))) continue;
+      if (!this.#polyModUrls.some(mod => typeof mod.base === "string" && sameBase(mod.base, bundledMod.base))) {
+        this.#polyModUrls.push({ ...bundledMod });
+        changed = true;
+      }
+      added.push(bundledMod.base);
+    }
+    this.localStorage?.setItem(BUNDLED_MODS_STORAGE_KEY, JSON.stringify(added));
+    return changed;
   }
   serializeMod(mod: PolyMod): { base: string; version: string; loaded: boolean; } {
     return { "base": mod.baseUrl ? mod.baseUrl : "", "version": mod.savedLatest ? "latest" : mod.modVersion ? mod.modVersion : "latest", "loaded": mod.isLoaded || false };
@@ -1832,6 +1928,45 @@ class PolyModLoaderImpl implements PolyModLoader {
         tokenEnd: `"simulation_worker.bundle.js"`,
         func: `ActivePolyModLoader.getSimURL()`
       })
+    this.#registerDistributionMixins();
+  }
+  /**
+   * Mixins specific to this PolyModLoader distribution: backend routing and the garage-first launch.
+   */
+  #registerDistributionMixins() {
+    // Send backend traffic (leaderboards, profiles, multiplayer signaling) through the resolved backend URL.
+    if (this.#backendUrl !== OFFICIAL_BACKEND_URL) {
+      this.registerGlobalMixin({
+        type: MixinType.REPLACEBETWEEN,
+        tokenStart: `"${OFFICIAL_BACKEND_URL}" +`,
+        tokenEnd: `"${OFFICIAL_BACKEND_URL}" +`,
+        func: `ActivePolyModLoader.backendUrl +`
+      });
+    }
+
+    // First launch: open the garage instead of the tutorial track. The "tutorial" startup action
+    // becomes "garage", the loading screen stays up until the garage replaces the main menu, and the
+    // tutorial is marked completed so later launches go straight to the main menu like in PolyTrack.
+    this.registerGlobalMixin({
+      type: MixinType.REPLACEBETWEEN,
+      tokenStart: `: { type: "tutorial" };`,
+      tokenEnd: `: { type: "tutorial" };`,
+      func: `: { type: "garage" };`
+    });
+    this.registerGlobalMixin({
+      type: MixinType.INSERT,
+      token: `"verifier" != (0, R.gn)(this, Oh, "f")?.type &&`,
+      func: `"garage" != (0, R.gn)(this, Oh, "f")?.type &&`
+    });
+    this.registerGlobalMixin({
+      type: MixinType.REPLACEBETWEEN,
+      tokenStart: `case "tutorial": {`,
+      tokenEnd: `case "tutorial": {`,
+      func: `case "garage":
+                                  ((0, R.gn)(this, bh, "f").setTutorialCompleted(), m());
+                                  break;
+                                case "tutorial": {`
+    });
   }
   async initMods() {
     this.#preInitPML();
@@ -2976,7 +3111,7 @@ getPhysicsWasmURL(): string {
   }
 }
 // @ts-ignore
-const ActivePolyModLoader = new PolyModLoaderImpl("0.6.3", window.pmlversion);
+const ActivePolyModLoader = new PolyModLoaderImpl("0.6.3", window.pmlversion, backendUrl);
 
 // @ts-ignore
 window.polytrackModConfiguration = {

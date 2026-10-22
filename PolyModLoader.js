@@ -26,7 +26,7 @@ var __classPrivateFieldSet = (this && this.__classPrivateFieldSet) || function (
     if (typeof state === "function" ? receiver !== state || !f : !state.has(receiver)) throw new TypeError("Cannot write private member to an object whose class did not declare it");
     return (kind === "a" ? f.call(receiver, value) : f ? f.value = value : state.set(receiver, value)), value;
 };
-var _PolyDBImpl_instances, _PolyDBImpl_db, _PolyDBImpl_getDb, _PolyModLoaderImpl_instances, _PolyModLoaderImpl_polyVersion, _PolyModLoaderImpl_allMods, _PolyModLoaderImpl_simWorkerMixins, _PolyModLoaderImpl_physicsMixins, _PolyModLoaderImpl_physicsWasmPatches, _PolyModLoaderImpl_chunkMixins, _PolyModLoaderImpl_settings, _PolyModLoaderImpl_settingElements, _PolyModLoaderImpl_settingConstructor, _PolyModLoaderImpl_defaultSettings, _PolyModLoaderImpl_latestSetting, _PolyModLoaderImpl_keybindings, _PolyModLoaderImpl_defaultBinds, _PolyModLoaderImpl_bindConstructor, _PolyModLoaderImpl_latestBinding, _PolyModLoaderImpl_pmlVersion, _PolyModLoaderImpl_polyModUrls, _PolyModLoaderImpl_applyManifestToMod, _PolyModLoaderImpl_settingIndex, _PolyModLoaderImpl_appendToSettingsMenu, _PolyModLoaderImpl_appendToKeybindsMenu, _PolyModLoaderImpl_applySettings, _PolyModLoaderImpl_applyKeybinds, _PolyModLoaderImpl_preInitPML, _PolyModLoaderImpl_prePreInitPML, _PolyModLoaderImpl_leb128Length, _PolyModLoaderImpl_encodeSignedLEB128, _PolyModLoaderImpl_applyPhysicsWasmPatch;
+var _PolyDBImpl_instances, _PolyDBImpl_db, _PolyDBImpl_getDb, _PolyModLoaderImpl_instances, _PolyModLoaderImpl_polyVersion, _PolyModLoaderImpl_allMods, _PolyModLoaderImpl_simWorkerMixins, _PolyModLoaderImpl_physicsMixins, _PolyModLoaderImpl_physicsWasmPatches, _PolyModLoaderImpl_chunkMixins, _PolyModLoaderImpl_settings, _PolyModLoaderImpl_settingElements, _PolyModLoaderImpl_settingConstructor, _PolyModLoaderImpl_defaultSettings, _PolyModLoaderImpl_latestSetting, _PolyModLoaderImpl_keybindings, _PolyModLoaderImpl_defaultBinds, _PolyModLoaderImpl_bindConstructor, _PolyModLoaderImpl_latestBinding, _PolyModLoaderImpl_pmlVersion, _PolyModLoaderImpl_backendUrl, _PolyModLoaderImpl_polyModUrls, _PolyModLoaderImpl_applyManifestToMod, _PolyModLoaderImpl_addBundledMods, _PolyModLoaderImpl_settingIndex, _PolyModLoaderImpl_appendToSettingsMenu, _PolyModLoaderImpl_appendToKeybindsMenu, _PolyModLoaderImpl_applySettings, _PolyModLoaderImpl_applyKeybinds, _PolyModLoaderImpl_preInitPML, _PolyModLoaderImpl_prePreInitPML, _PolyModLoaderImpl_registerDistributionMixins, _PolyModLoaderImpl_leb128Length, _PolyModLoaderImpl_encodeSignedLEB128, _PolyModLoaderImpl_applyPhysicsWasmPatch;
 // @ts-ignore
 import _semver from "./lib/semver.js";
 import { MixinType, PhysicsMixinType, SettingType } from "./PolyTypes.js";
@@ -143,7 +143,55 @@ async function resolvePmlVersion() {
     }
     return "web";
 }
-const pmlversion = await resolvePmlVersion();
+/** PolyTrack's official backend (leaderboards, user profiles and multiplayer signaling). */
+const OFFICIAL_BACKEND_URL = "https://vps.kodub.com/";
+/** Where a same-origin backend proxy is looked for, relative to the page (see functions/api/[[path]].js). */
+const BACKEND_PROXY_PATH = "api/";
+/**
+ * Mods that ship with this PolyModLoader distribution. They are added to the player's mod list
+ * automatically (see `PolyModLoaderImpl.getPolyModsStorage`); players can still unload or remove
+ * them afterwards and that choice is remembered.
+ */
+const BUNDLED_MODS = [
+    {
+        // PolyCup: live cups for 2 to 8 racers in multiplayer lobbies - https://github.com/Prawnfoot05/PolyCup
+        base: "https://cdn.polymodloader.com/gh/Prawnfoot05/PolyCup/main/dist",
+        version: "latest",
+        loaded: true
+    }
+];
+/** localStorage key remembering which bundled mods have already been added to the mod list. */
+const BUNDLED_MODS_STORAGE_KEY = "pmlBundledMods";
+/**
+ * Picks the base URL the game uses for leaderboards, user profiles and multiplayer signaling.
+ *
+ * PolyTrack's backend only answers requests whose `Origin` is one of the game's own origins (the
+ * desktop app rewrites the header in electron/main.js), so a web build hosted on another domain
+ * talks to it through a same-origin proxy when one is deployed next to the page.
+ *
+ * Resolution order: `window.polyModLoaderConfig.backendUrl`, then the proxy at `./api/` if it
+ * answers the probe, then the official backend.
+ */
+async function resolveBackendUrl() {
+    // @ts-ignore
+    const configured = window.polyModLoaderConfig?.backendUrl;
+    if (typeof configured === "string" && configured.length > 0) {
+        return configured.endsWith("/") ? configured : configured + "/";
+    }
+    if (isApp())
+        return OFFICIAL_BACKEND_URL;
+    try {
+        const proxyUrl = new URL(BACKEND_PROXY_PATH, document.baseURI).href;
+        const res = await fetch(proxyUrl, { cache: "no-store", signal: AbortSignal.timeout(3000) });
+        if (res.ok && res.headers.get("X-PolyTrack-Proxy") === "1")
+            return proxyUrl;
+    }
+    catch (e) {
+        console.warn("[PML] Backend proxy probe failed, using the official backend directly:", e);
+    }
+    return OFFICIAL_BACKEND_URL;
+}
+const [pmlversion, backendUrl] = await Promise.all([resolvePmlVersion(), resolveBackendUrl()]);
 Object.defineProperty(window, "pmlversion", {
     get() { return pmlversion; },
     set(value) {
@@ -383,7 +431,7 @@ function findNthOccurrence(str, subStr, n) {
     return -1;
 }
 class PolyModLoaderImpl {
-    constructor(polyVersion, pmlVersion) {
+    constructor(polyVersion, pmlVersion, backendUrl) {
         _PolyModLoaderImpl_instances.add(this);
         _PolyModLoaderImpl_polyVersion.set(this, void 0);
         _PolyModLoaderImpl_allMods.set(this, void 0);
@@ -403,6 +451,7 @@ class PolyModLoaderImpl {
         _PolyModLoaderImpl_bindConstructor.set(this, void 0);
         _PolyModLoaderImpl_latestBinding.set(this, void 0);
         _PolyModLoaderImpl_pmlVersion.set(this, void 0);
+        _PolyModLoaderImpl_backendUrl.set(this, void 0);
         _PolyModLoaderImpl_polyModUrls.set(this, void 0);
         _PolyModLoaderImpl_applyManifestToMod.set(this, (mod, manifest) => {
             mod.modName = manifest.name;
@@ -431,11 +480,13 @@ class PolyModLoaderImpl {
         this.getFromPolyTrack = (path) => { };
         this.getFromPolyTrackGlobal = (path) => { };
         __classPrivateFieldSet(this, _PolyModLoaderImpl_pmlVersion, pmlVersion, "f");
+        __classPrivateFieldSet(this, _PolyModLoaderImpl_backendUrl, backendUrl, "f");
         /** @type {string} */
         __classPrivateFieldSet(this, _PolyModLoaderImpl_polyVersion, polyVersion, "f");
         /** @type {PolyMod[]} */
         __classPrivateFieldSet(this, _PolyModLoaderImpl_allMods, [], "f");
         console.log("[PML] PolyModLoader initialized, version:", pmlVersion);
+        console.log("[PML] Backend URL:", backendUrl);
         if (pmlVersion === "web") {
             this.errorMixins.push({
                 type: MixinType.INSERT,
@@ -494,6 +545,13 @@ class PolyModLoaderImpl {
     }
     get polyVersion() {
         return __classPrivateFieldGet(this, _PolyModLoaderImpl_polyVersion, "f"); // Why is this even private lmfao
+    }
+    /**
+     * Base URL (ending with a slash) of the backend the game talks to for leaderboards, user profiles
+     * and multiplayer signaling: PolyTrack's official backend or a same-origin proxy for it.
+     */
+    get backendUrl() {
+        return __classPrivateFieldGet(this, _PolyModLoaderImpl_backendUrl, "f");
     }
     initStorage(localStorage) {
         this.localStorage = localStorage;
@@ -742,6 +800,10 @@ class PolyModLoaderImpl {
         const polyModsStorage = this.localStorage?.getItem("polyMods");
         if (polyModsStorage) {
             __classPrivateFieldSet(this, _PolyModLoaderImpl_polyModUrls, JSON.parse(polyModsStorage), "f");
+            // An existing mod list (e.g. a profile from before this distribution) gets the bundled mods added once.
+            if (__classPrivateFieldGet(this, _PolyModLoaderImpl_instances, "m", _PolyModLoaderImpl_addBundledMods).call(this, false)) {
+                this.localStorage?.setItem("polyMods", JSON.stringify(__classPrivateFieldGet(this, _PolyModLoaderImpl_polyModUrls, "f")));
+            }
         }
         else {
             __classPrivateFieldSet(this, _PolyModLoaderImpl_polyModUrls, [
@@ -751,6 +813,8 @@ class PolyModLoaderImpl {
                     "loaded": true
                 }
             ], "f");
+            // A fresh (or cleared) mod list always starts out with the bundled mods.
+            __classPrivateFieldGet(this, _PolyModLoaderImpl_instances, "m", _PolyModLoaderImpl_addBundledMods).call(this, true);
             this.localStorage?.setItem("polyMods", JSON.stringify(__classPrivateFieldGet(this, _PolyModLoaderImpl_polyModUrls, "f")));
         }
         return __classPrivateFieldGet(this, _PolyModLoaderImpl_polyModUrls, "f");
@@ -1805,7 +1869,34 @@ class PolyModLoaderImpl {
         return originalChunkString;
     }
 }
-_PolyModLoaderImpl_polyVersion = new WeakMap(), _PolyModLoaderImpl_allMods = new WeakMap(), _PolyModLoaderImpl_simWorkerMixins = new WeakMap(), _PolyModLoaderImpl_physicsMixins = new WeakMap(), _PolyModLoaderImpl_physicsWasmPatches = new WeakMap(), _PolyModLoaderImpl_chunkMixins = new WeakMap(), _PolyModLoaderImpl_settings = new WeakMap(), _PolyModLoaderImpl_settingElements = new WeakMap(), _PolyModLoaderImpl_settingConstructor = new WeakMap(), _PolyModLoaderImpl_defaultSettings = new WeakMap(), _PolyModLoaderImpl_latestSetting = new WeakMap(), _PolyModLoaderImpl_keybindings = new WeakMap(), _PolyModLoaderImpl_defaultBinds = new WeakMap(), _PolyModLoaderImpl_bindConstructor = new WeakMap(), _PolyModLoaderImpl_latestBinding = new WeakMap(), _PolyModLoaderImpl_pmlVersion = new WeakMap(), _PolyModLoaderImpl_polyModUrls = new WeakMap(), _PolyModLoaderImpl_applyManifestToMod = new WeakMap(), _PolyModLoaderImpl_settingIndex = new WeakMap(), _PolyModLoaderImpl_instances = new WeakSet(), _PolyModLoaderImpl_appendToSettingsMenu = function _PolyModLoaderImpl_appendToSettingsMenu(element) {
+_PolyModLoaderImpl_polyVersion = new WeakMap(), _PolyModLoaderImpl_allMods = new WeakMap(), _PolyModLoaderImpl_simWorkerMixins = new WeakMap(), _PolyModLoaderImpl_physicsMixins = new WeakMap(), _PolyModLoaderImpl_physicsWasmPatches = new WeakMap(), _PolyModLoaderImpl_chunkMixins = new WeakMap(), _PolyModLoaderImpl_settings = new WeakMap(), _PolyModLoaderImpl_settingElements = new WeakMap(), _PolyModLoaderImpl_settingConstructor = new WeakMap(), _PolyModLoaderImpl_defaultSettings = new WeakMap(), _PolyModLoaderImpl_latestSetting = new WeakMap(), _PolyModLoaderImpl_keybindings = new WeakMap(), _PolyModLoaderImpl_defaultBinds = new WeakMap(), _PolyModLoaderImpl_bindConstructor = new WeakMap(), _PolyModLoaderImpl_latestBinding = new WeakMap(), _PolyModLoaderImpl_pmlVersion = new WeakMap(), _PolyModLoaderImpl_backendUrl = new WeakMap(), _PolyModLoaderImpl_polyModUrls = new WeakMap(), _PolyModLoaderImpl_applyManifestToMod = new WeakMap(), _PolyModLoaderImpl_settingIndex = new WeakMap(), _PolyModLoaderImpl_instances = new WeakSet(), _PolyModLoaderImpl_addBundledMods = function _PolyModLoaderImpl_addBundledMods(reset) {
+    if (!__classPrivateFieldGet(this, _PolyModLoaderImpl_polyModUrls, "f"))
+        return false;
+    const sameBase = (a, b) => a.replace(/\/+$/, "") === b.replace(/\/+$/, "");
+    let added = [];
+    if (!reset) {
+        try {
+            const stored = JSON.parse(this.localStorage?.getItem(BUNDLED_MODS_STORAGE_KEY) || "[]");
+            if (Array.isArray(stored))
+                added = stored.filter(entry => typeof entry === "string");
+        }
+        catch (err) {
+            console.warn("[PML] Couldn't read the bundled mod list, adding the bundled mods again:", err);
+        }
+    }
+    let changed = false;
+    for (const bundledMod of BUNDLED_MODS) {
+        if (added.some(base => sameBase(base, bundledMod.base)))
+            continue;
+        if (!__classPrivateFieldGet(this, _PolyModLoaderImpl_polyModUrls, "f").some(mod => typeof mod.base === "string" && sameBase(mod.base, bundledMod.base))) {
+            __classPrivateFieldGet(this, _PolyModLoaderImpl_polyModUrls, "f").push({ ...bundledMod });
+            changed = true;
+        }
+        added.push(bundledMod.base);
+    }
+    this.localStorage?.setItem(BUNDLED_MODS_STORAGE_KEY, JSON.stringify(added));
+    return changed;
+}, _PolyModLoaderImpl_appendToSettingsMenu = function _PolyModLoaderImpl_appendToSettingsMenu(element) {
     var _a;
     __classPrivateFieldGet(this, _PolyModLoaderImpl_settingElements, "f").push(element);
     __classPrivateFieldGet(this, _PolyModLoaderImpl_settings, "f").push(`ActivePolyModLoader.addToSettings(${__classPrivateFieldGet(this, _PolyModLoaderImpl_settingIndex, "f")}),`);
@@ -2616,6 +2707,40 @@ _PolyModLoaderImpl_polyVersion = new WeakMap(), _PolyModLoaderImpl_allMods = new
         tokenEnd: `"simulation_worker.bundle.js"`,
         func: `ActivePolyModLoader.getSimURL()`
     });
+    __classPrivateFieldGet(this, _PolyModLoaderImpl_instances, "m", _PolyModLoaderImpl_registerDistributionMixins).call(this);
+}, _PolyModLoaderImpl_registerDistributionMixins = function _PolyModLoaderImpl_registerDistributionMixins() {
+    // Send backend traffic (leaderboards, profiles, multiplayer signaling) through the resolved backend URL.
+    if (__classPrivateFieldGet(this, _PolyModLoaderImpl_backendUrl, "f") !== OFFICIAL_BACKEND_URL) {
+        this.registerGlobalMixin({
+            type: MixinType.REPLACEBETWEEN,
+            tokenStart: `"${OFFICIAL_BACKEND_URL}" +`,
+            tokenEnd: `"${OFFICIAL_BACKEND_URL}" +`,
+            func: `ActivePolyModLoader.backendUrl +`
+        });
+    }
+    // First launch: open the garage instead of the tutorial track. The "tutorial" startup action
+    // becomes "garage", the loading screen stays up until the garage replaces the main menu, and the
+    // tutorial is marked completed so later launches go straight to the main menu like in PolyTrack.
+    this.registerGlobalMixin({
+        type: MixinType.REPLACEBETWEEN,
+        tokenStart: `: { type: "tutorial" };`,
+        tokenEnd: `: { type: "tutorial" };`,
+        func: `: { type: "garage" };`
+    });
+    this.registerGlobalMixin({
+        type: MixinType.INSERT,
+        token: `"verifier" != (0, R.gn)(this, Oh, "f")?.type &&`,
+        func: `"garage" != (0, R.gn)(this, Oh, "f")?.type &&`
+    });
+    this.registerGlobalMixin({
+        type: MixinType.REPLACEBETWEEN,
+        tokenStart: `case "tutorial": {`,
+        tokenEnd: `case "tutorial": {`,
+        func: `case "garage":
+                                  ((0, R.gn)(this, bh, "f").setTutorialCompleted(), m());
+                                  break;
+                                case "tutorial": {`
+    });
 }, _PolyModLoaderImpl_leb128Length = function _PolyModLoaderImpl_leb128Length(bytes, start) {
     let i = start;
     while (i < bytes.length && (bytes[i] & 0x80) !== 0)
@@ -2669,7 +2794,7 @@ _PolyModLoaderImpl_polyVersion = new WeakMap(), _PolyModLoaderImpl_allMods = new
     }
 };
 // @ts-ignore
-const ActivePolyModLoader = new PolyModLoaderImpl("0.6.3", window.pmlversion);
+const ActivePolyModLoader = new PolyModLoaderImpl("0.6.3", window.pmlversion, backendUrl);
 // @ts-ignore
 window.polytrackModConfiguration = {
     modName: "PolyModLoader",
