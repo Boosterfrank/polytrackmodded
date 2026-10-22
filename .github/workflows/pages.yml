@@ -1,7 +1,7 @@
 name: Deploy to GitHub Pages
 
-# Publishes the repository root as a static site. There is no backend proxy on GitHub Pages
-# (see functions/api/[[path]].js and README.md), so the game talks to PolyTrack's backend directly.
+# Publishes the repository root as a static site. GitHub Pages cannot run the backend proxy itself;
+# pml-config.js points the game at the Cloudflare Worker from proxy/ (see README.md).
 on:
   push:
   workflow_dispatch:
