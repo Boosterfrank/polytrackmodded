@@ -148,8 +148,8 @@ const BACKEND_PROXY_PATH = "api/";
  */
 const BUNDLED_MODS: Array<{ base: string, version: string, loaded: boolean }> = [
   {
-    // PolyCup: live cups for 2 to 8 racers in multiplayer lobbies - https://github.com/Prawnfoot05/PolyCup
-    base: "https://cdn.polymodloader.com/gh/Prawnfoot05/PolyCup/main/dist",
+    // PolyRanked: ranked matchmaking for PolyTrack - https://github.com/boosterfrank/polymultiplayer
+    base: "https://cdn.polymodloader.com/gh/boosterfrank/polymultiplayer/main",
     version: "latest",
     loaded: true
   }
@@ -880,7 +880,8 @@ class PolyModLoaderImpl implements PolyModLoader {
    * Add the mods bundled with this distribution ({@link BUNDLED_MODS}) to the mod list.
    *
    * Each bundled mod is only added once per browser profile, so removing it through the mod
-   * library sticks; clearing the mod list starts over.
+   * library sticks; clearing the mod list starts over. A mod that was added this way but is no
+   * longer bundled is removed again.
    *
    * @param {boolean} reset - Forget which bundled mods were added before (used for a fresh mod list).
    * @returns {boolean}     - Whether the mod list changed.
@@ -898,6 +899,13 @@ class PolyModLoaderImpl implements PolyModLoader {
       }
     }
     let changed = false;
+    // Mods this distribution used to bundle (and added itself) go away again.
+    for (const staleBase of added.filter(base => !BUNDLED_MODS.some(mod => sameBase(mod.base, base)))) {
+      const before = this.#polyModUrls.length;
+      this.#polyModUrls = this.#polyModUrls.filter(mod => !(typeof mod.base === "string" && sameBase(mod.base, staleBase)));
+      if (this.#polyModUrls.length !== before) changed = true;
+      added = added.filter(base => !sameBase(base, staleBase));
+    }
     for (const bundledMod of BUNDLED_MODS) {
       if (added.some(base => sameBase(base, bundledMod.base))) continue;
       if (!this.#polyModUrls.some(mod => typeof mod.base === "string" && sameBase(mod.base, bundledMod.base))) {

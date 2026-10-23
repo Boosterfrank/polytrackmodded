@@ -154,8 +154,8 @@ const BACKEND_PROXY_PATH = "api/";
  */
 const BUNDLED_MODS = [
     {
-        // PolyCup: live cups for 2 to 8 racers in multiplayer lobbies - https://github.com/Prawnfoot05/PolyCup
-        base: "https://cdn.polymodloader.com/gh/Prawnfoot05/PolyCup/main/dist",
+        // PolyRanked: ranked matchmaking for PolyTrack - https://github.com/boosterfrank/polymultiplayer
+        base: "https://cdn.polymodloader.com/gh/boosterfrank/polymultiplayer/main",
         version: "latest",
         loaded: true
     }
@@ -1895,6 +1895,14 @@ _PolyModLoaderImpl_polyVersion = new WeakMap(), _PolyModLoaderImpl_allMods = new
         }
     }
     let changed = false;
+    // Mods this distribution used to bundle (and added itself) go away again.
+    for (const staleBase of added.filter(base => !BUNDLED_MODS.some(mod => sameBase(mod.base, base)))) {
+        const before = __classPrivateFieldGet(this, _PolyModLoaderImpl_polyModUrls, "f").length;
+        __classPrivateFieldSet(this, _PolyModLoaderImpl_polyModUrls, __classPrivateFieldGet(this, _PolyModLoaderImpl_polyModUrls, "f").filter(mod => !(typeof mod.base === "string" && sameBase(mod.base, staleBase))), "f");
+        if (__classPrivateFieldGet(this, _PolyModLoaderImpl_polyModUrls, "f").length !== before)
+            changed = true;
+        added = added.filter(base => !sameBase(base, staleBase));
+    }
     for (const bundledMod of BUNDLED_MODS) {
         if (added.some(base => sameBase(base, bundledMod.base)))
             continue;
