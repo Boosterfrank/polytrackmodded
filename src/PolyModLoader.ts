@@ -162,25 +162,6 @@ const BUNDLED_MODS: Array<{ base: string, version: string, loaded: boolean }> = 
 ];
 /** localStorage key remembering which bundled mods have already been added to the mod list. */
 const BUNDLED_MODS_STORAGE_KEY = "pmlBundledMods";
-/**
- * PolyTrack versions whose mods may be installed on this build, most preferred first. The current
- * version comes first; the older ones are offered with a disclaimer because such mods may not work.
- */
-const COMPATIBLE_GAME_VERSIONS = ["0.6.3", "0.6.2", "0.6.1", "0.6.0"];
-/**
- * Source patches applied to a mod's code before it is imported, keyed by mod id. PML Core's mod
- * library only offers mods that list the current game version; these make it use the loader's
- * compatibility rules instead (see {@link COMPATIBLE_GAME_VERSIONS}). A patch whose text is not
- * found is skipped with a warning, so a newer PML Core still loads.
- */
-const MOD_SOURCE_PATCHES: { [modId: string]: Array<{ from: string, to: string }> } = {
-  pmlcore: [
-    { from: "!modVersions.includes(this.gameVersion)", to: "!modVersions.some(v => window.polyModLoader.isCompatibleGameVersion(v))" },
-    { from: "version.game_version === this.gameVersion", to: "window.polyModLoader.isCompatibleGameVersion(version.game_version)" },
-    { from: "JSON.parse(mod.latest)[this.gameVersion]", to: "window.polyModLoader.pickLatestVersion(JSON.parse(mod.latest))" },
-    { from: "!JSON.parse(version.game_versions).includes(this.gameVersion)", to: "!JSON.parse(version.game_versions).some(v => window.polyModLoader.isCompatibleGameVersion(v))" }
-  ]
-};
 
 /**
  * Picks the base URL the game uses for leaderboards, user profiles and multiplayer signaling.
@@ -589,51 +570,6 @@ class PolyModLoaderImpl implements PolyModLoader {
     if (typeof url !== "string" || !url.startsWith(OFFICIAL_BACKEND_URL)) return url;
     return (this.#backendUrl + url.slice(OFFICIAL_BACKEND_URL.length)) as T;
   }
-  /** PolyTrack versions whose mods can be installed on this build, most preferred first. */
-  get compatibleGameVersions(): string[] {
-    return [...COMPATIBLE_GAME_VERSIONS];
-  }
-  /** Whether mods made for PolyTrack `gameVersion` can be installed on this build. */
-  isCompatibleGameVersion(gameVersion: string): boolean {
-    return COMPATIBLE_GAME_VERSIONS.includes(gameVersion);
-  }
-  /**
-   * Pick the mod version to use from a global manifest's `latest` map: the entry for the current
-   * game version, else the entry for the newest compatible older version, else `undefined`.
-   */
-  pickLatestVersion(latest: { [gameVersion: string]: string } | undefined): string | undefined {
-    if (!latest || typeof latest !== "object") return undefined;
-    for (const gameVersion of COMPATIBLE_GAME_VERSIONS) {
-      if (typeof latest[gameVersion] === "string" && latest[gameVersion]) return latest[gameVersion];
-    }
-    return undefined;
-  }
-  /**
-   * Import a mod's main module, applying {@link MOD_SOURCE_PATCHES} for the mod first if any.
-   *
-   * @param modId - The mod id from its manifest.
-   * @param source - Either the module URL, or the module code from the mod cache (string or Blob).
-   */
-  async #importModCode(modId: string, source: { url: string } | { code: string | Blob }): Promise<any> {
-    const patches = MOD_SOURCE_PATCHES[modId];
-    if (!patches) {
-      return import("url" in source ? source.url : URL.createObjectURL(new Blob([source.code], { type: "application/javascript" })));
-    }
-    let code: string;
-    if ("url" in source) {
-      code = await fetch(source.url).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.text(); });
-    } else {
-      code = typeof source.code === "string" ? source.code : await source.code.text();
-    }
-    for (const patch of patches) {
-      if (!code.includes(patch.from)) {
-        console.warn(`[PML] Source patch for mod ${modId} not applied, text not found:`, patch.from);
-        continue;
-      }
-      code = code.split(patch.from).join(patch.to);
-    }
-    return import(URL.createObjectURL(new Blob([code], { type: "application/javascript" })));
-  }
   localStorage: Storage | undefined;
   #polyModUrls: Array<{ base: string, version: string, loaded: boolean }> | undefined;
   initStorage(localStorage: Storage) {
@@ -829,7 +765,7 @@ class PolyModLoaderImpl implements PolyModLoader {
         mainManifestFile = await fetch(`${polyModObject.base}/manifest.json`).then(r => r.json());
         if (polyModObject.version === "latest") {
           current.totalParts = 3;
-          polyModObject.version = this.pickLatestVersion(mainManifestFile["latest"]) as string;
+          polyModObject.version = mainManifestFile["latest"][this.#polyVersion];
           latest = true;
         }
       } catch (err) {
@@ -864,7 +800,7 @@ class PolyModLoaderImpl implements PolyModLoader {
         }
         startFetchModMain(manifestFile.main);
         try {
-          const modImport = await this.#importModCode(manifestFile.id, importFromDB && dbMod ? { code: dbMod.codeStr } : { url: `${polyModUrl}/${manifestFile.main}` });
+          const modImport = await import(importFromDB && dbMod ? URL.createObjectURL(new Blob([dbMod.codeStr], { type: "application/javascript" })) : `${polyModUrl}/${manifestFile.main}`);
 
           let newMod: PolyMod = modImport.polyMod;
           if (this.getMod(manifestFile.id)) alert(`Duplicate mod detected: ${manifestFile.name}`);
@@ -875,7 +811,7 @@ class PolyModLoaderImpl implements PolyModLoader {
           newMod.savedLatest = latest;
           newMod.iconSrc = `${polyModUrl}/icon.png`;
           if(!newMod.manifest.targets.includes(this.#polyVersion)) {
-            console.warn(`Mod ${manifestFile.name} was made for PolyTrack ${newMod.manifest.targets.join(", ")}, not ${this.#polyVersion}; it may not work correctly.`);
+            console.warn(`Mod ${manifestFile.name} does not support PolyModLoader version ${this.#polyVersion}, this might lead to errors.`);
           }
           if (polyModObject.loaded) {
             newMod.setLoaded = true;
@@ -1032,14 +968,12 @@ class PolyModLoaderImpl implements PolyModLoader {
       const manifestFile: GlobalManifest = await fetch(`${polyModObject.base}/manifest.json`).then(r => r.json());
       let latest = false;
       if (polyModObject.version === "latest") {
-        polyModObject.version = this.pickLatestVersion(manifestFile["latest"]) as string;
+        polyModObject.version = manifestFile["latest"][this.#polyVersion];
         if (autoUpdate) {
           latest = true;
         }
-        if (polyModObject.version === "latest" || !polyModObject.version) {
-          alert(`Mod with URL ${polyModObject.base} does not have a version for PolyTrack ${this.#polyVersion} or any supported older version (${COMPATIBLE_GAME_VERSIONS.join(", ")}).`);
-          return;
-        }
+        if (polyModObject.version === "latest" || !polyModObject.version)
+          alert(`Mod with URL ${polyModObject.base} does not have a version which supports PolyTrack v${this.#polyVersion}.`);
       }
       const polyModUrl = `${polyModObject.base}/${polyModObject.version}`;
       const versionFile: VersionManifest = await fetch(`${polyModUrl}/version.json`).then(r => r.json());
@@ -1050,24 +984,15 @@ class PolyModLoaderImpl implements PolyModLoader {
         alert("This mod is already present!");
         return;
       }
-      const targets = Array.isArray(mod.targets) ? mod.targets : [];
-      if (!targets.some(target => this.isCompatibleGameVersion(target))) {
+      if (mod.targets.indexOf(this.#polyVersion) === -1) {
         alert(
           `Mod target version does not match polytrack version!
-                    Note: ${mod.name} version ${polyModObject.version} targets polytrack versions ${targets.join(', ')}, but this build only supports mods for PolyTrack ${COMPATIBLE_GAME_VERSIONS.join(', ')}.`
+                    Note: ${mod.name} version ${polyModObject.version} targets polytrack versions ${mod.targets.join(', ')}, but current polytrack version is ${this.#polyVersion}.`
         );
         return;
       }
-      if (!targets.includes(this.#polyVersion)) {
-        const proceed = confirm(
-          `${mod.name} ${polyModObject.version} was made for PolyTrack ${targets.join(", ")}, not for the version you are playing (${this.#polyVersion}).\n\n` +
-          `Mods for older versions of PolyTrack may not work correctly and can break the game or your multiplayer sessions. ` +
-          `If that happens, remove the mod again from the Mods menu.\n\nInstall it anyway?`
-        );
-        if (!proceed) return;
-      }
       try {
-        const modImport = await this.#importModCode(mod.id, { url: `${polyModUrl}/${mod.main}` });
+        const modImport = await import(`${polyModUrl}/${mod.main}`);
         let newMod: PolyMod = modImport.polyMod;
         newMod.iconSrc = `${polyModUrl}/icon.png`;
         mod.version = polyModObject.version;

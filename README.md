@@ -12,9 +12,7 @@ A fork of [PolyModLoader](https://git.polymodloader.com/polytrackmods/PolyModLoa
 - **Garage instead of the tutorial.** PolyTrack drops new players into the tutorial track on first launch. This build opens the garage instead and marks the tutorial as completed, so later launches go straight to the main menu.
 - **Backend proxy for leaderboards and multiplayer.** PolyTrack's backend (`vps.kodub.com`) only answers requests whose `Origin` header is one of the game's own origins. The desktop app handles that by rewriting the header (`electron/main.js`). A web build on another domain cannot, so this fork looks for a same-origin proxy at `./api/` when the page loads and, if it answers, routes leaderboard, profile and multiplayer-signaling traffic (including the signaling WebSockets) through it. `functions/api/[[path]].js` is that proxy as a Cloudflare Pages Function. Without a proxy the game talks to the official backend directly, which works on the desktop app and on origins kodub allows.
 
-- **Mods for recent older PolyTrack versions can be installed.** Upstream only accepts mods that list the current game version. This build also accepts mods made for the three versions before it (`COMPATIBLE_GAME_VERSIONS` in `src/PolyModLoader.ts`: 0.6.3, then 0.6.2, 0.6.1 and 0.6.0). *Mods > Add* and the mod library pick the build for the current version when the mod has one and otherwise the build for the newest compatible version, and a disclaimer asks for confirmation before a mod that was not made for the current version is installed. The mod library (PML Core, loaded from the PolyModLoader CDN) gets small load-time patches so its entries and version lists follow the same rule; if a future PML Core changes that code, the patches are skipped with a console warning and the library falls back to its upstream behaviour.
-
-Everything else (settings, keybinds, mixin API, desktop packaging) is unchanged from upstream.
+Everything else (mod library, settings, keybinds, mixin API, desktop packaging) is unchanged from upstream.
 
 ## Hosting the web version
 
