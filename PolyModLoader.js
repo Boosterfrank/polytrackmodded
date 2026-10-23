@@ -164,6 +164,24 @@ const BUNDLED_MODS = [
         base: "https://cdn.polymodloader.com/gh/Prawnfoot05/PolyCup/main/dist",
         version: "latest",
         loaded: true
+    },
+    {
+        // Car Switcher (0.6.3 port of Orangy's mod); the car packs below depend on it, so it comes first.
+        base: "https://cdn.polymodloader.com/gh/boosterfrank/polymultiplayer/main/mods/carswitcher",
+        version: "latest",
+        loaded: true
+    },
+    {
+        // Cool Cars (0.6.3 port of CRJakob's car pack)
+        base: "https://cdn.polymodloader.com/gh/boosterfrank/polymultiplayer/main/mods/coolcars",
+        version: "latest",
+        loaded: true
+    },
+    {
+        // Goofy Cars (0.6.3 port of CRJakob's car pack)
+        base: "https://cdn.polymodloader.com/gh/boosterfrank/polymultiplayer/main/mods/goofycars",
+        version: "latest",
+        loaded: true
     }
 ];
 /** localStorage key remembering which bundled mods have already been added to the mod list. */
