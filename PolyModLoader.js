@@ -158,6 +158,12 @@ const BUNDLED_MODS = [
         base: "https://cdn.polymodloader.com/gh/boosterfrank/polymultiplayer/main",
         version: "latest",
         loaded: true
+    },
+    {
+        // PolyCup: live cups for 2 to 8 racers in multiplayer lobbies - https://github.com/Prawnfoot05/PolyCup
+        base: "https://cdn.polymodloader.com/gh/Prawnfoot05/PolyCup/main/dist",
+        version: "latest",
+        loaded: true
     }
 ];
 /** localStorage key remembering which bundled mods have already been added to the mod list. */
