@@ -26,7 +26,7 @@ var __classPrivateFieldSet = (this && this.__classPrivateFieldSet) || function (
     if (typeof state === "function" ? receiver !== state || !f : !state.has(receiver)) throw new TypeError("Cannot write private member to an object whose class did not declare it");
     return (kind === "a" ? f.call(receiver, value) : f ? f.value = value : state.set(receiver, value)), value;
 };
-var _PolyDBImpl_instances, _PolyDBImpl_db, _PolyDBImpl_getDb, _PolyModLoaderImpl_instances, _PolyModLoaderImpl_polyVersion, _PolyModLoaderImpl_allMods, _PolyModLoaderImpl_simWorkerMixins, _PolyModLoaderImpl_physicsMixins, _PolyModLoaderImpl_physicsWasmPatches, _PolyModLoaderImpl_chunkMixins, _PolyModLoaderImpl_settings, _PolyModLoaderImpl_settingElements, _PolyModLoaderImpl_settingConstructor, _PolyModLoaderImpl_defaultSettings, _PolyModLoaderImpl_latestSetting, _PolyModLoaderImpl_keybindings, _PolyModLoaderImpl_defaultBinds, _PolyModLoaderImpl_bindConstructor, _PolyModLoaderImpl_latestBinding, _PolyModLoaderImpl_pmlVersion, _PolyModLoaderImpl_backendUrl, _PolyModLoaderImpl_polyModUrls, _PolyModLoaderImpl_applyManifestToMod, _PolyModLoaderImpl_fetchFreshJson, _PolyModLoaderImpl_addBundledMods, _PolyModLoaderImpl_settingIndex, _PolyModLoaderImpl_appendToSettingsMenu, _PolyModLoaderImpl_appendToKeybindsMenu, _PolyModLoaderImpl_applySettings, _PolyModLoaderImpl_applyKeybinds, _PolyModLoaderImpl_preInitPML, _PolyModLoaderImpl_prePreInitPML, _PolyModLoaderImpl_registerDistributionMixins, _PolyModLoaderImpl_leb128Length, _PolyModLoaderImpl_encodeSignedLEB128, _PolyModLoaderImpl_applyPhysicsWasmPatch;
+var _PolyDBImpl_instances, _PolyDBImpl_db, _PolyDBImpl_getDb, _PolyModLoaderImpl_instances, _PolyModLoaderImpl_polyVersion, _PolyModLoaderImpl_allMods, _PolyModLoaderImpl_simWorkerMixins, _PolyModLoaderImpl_physicsMixins, _PolyModLoaderImpl_physicsWasmPatches, _PolyModLoaderImpl_chunkMixins, _PolyModLoaderImpl_settings, _PolyModLoaderImpl_settingElements, _PolyModLoaderImpl_settingConstructor, _PolyModLoaderImpl_defaultSettings, _PolyModLoaderImpl_latestSetting, _PolyModLoaderImpl_keybindings, _PolyModLoaderImpl_defaultBinds, _PolyModLoaderImpl_bindConstructor, _PolyModLoaderImpl_latestBinding, _PolyModLoaderImpl_pmlVersion, _PolyModLoaderImpl_backendUrl, _PolyModLoaderImpl_polyModUrls, _PolyModLoaderImpl_applyManifestToMod, _PolyModLoaderImpl_fetchFreshJson, _PolyModLoaderImpl_fetchGlobalManifest, _PolyModLoaderImpl_addBundledMods, _PolyModLoaderImpl_settingIndex, _PolyModLoaderImpl_appendToSettingsMenu, _PolyModLoaderImpl_appendToKeybindsMenu, _PolyModLoaderImpl_applySettings, _PolyModLoaderImpl_applyKeybinds, _PolyModLoaderImpl_preInitPML, _PolyModLoaderImpl_prePreInitPML, _PolyModLoaderImpl_registerDistributionMixins, _PolyModLoaderImpl_leb128Length, _PolyModLoaderImpl_encodeSignedLEB128, _PolyModLoaderImpl_applyPhysicsWasmPatch;
 // @ts-ignore
 import _semver from "./lib/semver.js";
 import { MixinType, PhysicsMixinType, SettingType } from "./PolyTypes.js";
@@ -755,7 +755,7 @@ class PolyModLoaderImpl {
             let mainManifestFile;
             try {
                 startFetchLatest();
-                mainManifestFile = await __classPrivateFieldGet(this, _PolyModLoaderImpl_instances, "m", _PolyModLoaderImpl_fetchFreshJson).call(this, `${polyModObject.base}/manifest.json`);
+                mainManifestFile = await __classPrivateFieldGet(this, _PolyModLoaderImpl_instances, "m", _PolyModLoaderImpl_fetchGlobalManifest).call(this, polyModObject.base);
                 if (polyModObject.version === "latest") {
                     current.totalParts = 3;
                     polyModObject.version = mainManifestFile["latest"][__classPrivateFieldGet(this, _PolyModLoaderImpl_polyVersion, "f")];
@@ -897,7 +897,7 @@ class PolyModLoaderImpl {
      */
     async addMod(polyModObject, autoUpdate) {
         try {
-            const manifestFile = await __classPrivateFieldGet(this, _PolyModLoaderImpl_instances, "m", _PolyModLoaderImpl_fetchFreshJson).call(this, `${polyModObject.base}/manifest.json`);
+            const manifestFile = await __classPrivateFieldGet(this, _PolyModLoaderImpl_instances, "m", _PolyModLoaderImpl_fetchGlobalManifest).call(this, polyModObject.base);
             let latest = false;
             if (polyModObject.version === "latest") {
                 polyModObject.version = manifestFile["latest"][__classPrivateFieldGet(this, _PolyModLoaderImpl_polyVersion, "f")];
@@ -1915,6 +1915,26 @@ async function _PolyModLoaderImpl_fetchFreshJson(url) {
     if (!response.ok)
         throw new Error(`HTTP ${response.status} for ${url}`);
     return response.json();
+}, _PolyModLoaderImpl_fetchGlobalManifest = 
+/**
+ * Fetch a mod's global manifest. For mods served by the PolyModLoader CDN from a GitHub
+ * repository (`https://cdn.polymodloader.com/gh/<owner>/<repo>/<branch>/...`) the manifest is read
+ * from GitHub itself first, because the CDN keeps its own copy of `manifest.json` for a long time
+ * and would keep reporting an old `latest` version; the CDN is the fallback. Mod versions
+ * themselves still come from the CDN, their folders never change.
+ */
+async function _PolyModLoaderImpl_fetchGlobalManifest(base) {
+    const github = base.match(/^https:\/\/cdn\.polymodloader\.com\/gh\/([^/]+)\/([^/]+)\/([^/]+)(\/.*)?$/);
+    if (github) {
+        const [, owner, repo, branch, dir] = github;
+        try {
+            return await __classPrivateFieldGet(this, _PolyModLoaderImpl_instances, "m", _PolyModLoaderImpl_fetchFreshJson).call(this, `https://raw.githubusercontent.com/${owner}/${repo}/${branch}${dir ?? ""}/manifest.json`);
+        }
+        catch (err) {
+            console.warn(`[PML] Couldn't read the manifest of ${base} from GitHub, using the CDN copy:`, err);
+        }
+    }
+    return __classPrivateFieldGet(this, _PolyModLoaderImpl_instances, "m", _PolyModLoaderImpl_fetchFreshJson).call(this, `${base}/manifest.json`);
 }, _PolyModLoaderImpl_addBundledMods = function _PolyModLoaderImpl_addBundledMods(reset) {
     if (!__classPrivateFieldGet(this, _PolyModLoaderImpl_polyModUrls, "f"))
         return false;

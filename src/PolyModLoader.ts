@@ -780,7 +780,7 @@ class PolyModLoaderImpl implements PolyModLoader {
       let mainManifestFile: GlobalManifest;
       try {
         startFetchLatest();
-        mainManifestFile = await this.#fetchFreshJson<GlobalManifest>(`${polyModObject.base}/manifest.json`);
+        mainManifestFile = await this.#fetchGlobalManifest(polyModObject.base);
         if (polyModObject.version === "latest") {
           current.totalParts = 3;
           polyModObject.version = mainManifestFile["latest"][this.#polyVersion];
@@ -912,6 +912,25 @@ class PolyModLoaderImpl implements PolyModLoader {
     return response.json();
   }
   /**
+   * Fetch a mod's global manifest. For mods served by the PolyModLoader CDN from a GitHub
+   * repository (`https://cdn.polymodloader.com/gh/<owner>/<repo>/<branch>/...`) the manifest is read
+   * from GitHub itself first, because the CDN keeps its own copy of `manifest.json` for a long time
+   * and would keep reporting an old `latest` version; the CDN is the fallback. Mod versions
+   * themselves still come from the CDN, their folders never change.
+   */
+  async #fetchGlobalManifest(base: string): Promise<GlobalManifest> {
+    const github = base.match(/^https:\/\/cdn\.polymodloader\.com\/gh\/([^/]+)\/([^/]+)\/([^/]+)(\/.*)?$/);
+    if (github) {
+      const [, owner, repo, branch, dir] = github;
+      try {
+        return await this.#fetchFreshJson<GlobalManifest>(`https://raw.githubusercontent.com/${owner}/${repo}/${branch}${dir ?? ""}/manifest.json`);
+      } catch (err) {
+        console.warn(`[PML] Couldn't read the manifest of ${base} from GitHub, using the CDN copy:`, err);
+      }
+    }
+    return this.#fetchFreshJson<GlobalManifest>(`${base}/manifest.json`);
+  }
+  /**
    * Add the mods bundled with this distribution ({@link BUNDLED_MODS}) to the mod list.
    *
    * Each bundled mod is only added once per browser profile, so removing it through the mod
@@ -994,7 +1013,7 @@ class PolyModLoaderImpl implements PolyModLoader {
    */
   async addMod(polyModObject: { base: string, version: string, loaded: boolean }, autoUpdate: boolean) {
     try {
-      const manifestFile: GlobalManifest = await this.#fetchFreshJson<GlobalManifest>(`${polyModObject.base}/manifest.json`);
+      const manifestFile: GlobalManifest = await this.#fetchGlobalManifest(polyModObject.base);
       let latest = false;
       if (polyModObject.version === "latest") {
         polyModObject.version = manifestFile["latest"][this.#polyVersion];
