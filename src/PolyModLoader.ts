@@ -780,7 +780,7 @@ class PolyModLoaderImpl implements PolyModLoader {
       let mainManifestFile: GlobalManifest;
       try {
         startFetchLatest();
-        mainManifestFile = await fetch(`${polyModObject.base}/manifest.json`).then(r => r.json());
+        mainManifestFile = await this.#fetchFreshJson<GlobalManifest>(`${polyModObject.base}/manifest.json`);
         if (polyModObject.version === "latest") {
           current.totalParts = 3;
           polyModObject.version = mainManifestFile["latest"][this.#polyVersion];
@@ -807,7 +807,7 @@ class PolyModLoaderImpl implements PolyModLoader {
         if (importFromDB && dbMod) {
           manifestFile = dbMod.manifest;
         } else {
-          let versionFile: VersionManifest = await fetch(`${polyModUrl}/version.json`).then(r => r.json());
+          let versionFile: VersionManifest = await this.#fetchFreshJson<VersionManifest>(`${polyModUrl}/version.json`);
           manifestFile = {
             name: mainManifestFile.name,
             author: mainManifestFile.author,
@@ -901,6 +901,17 @@ class PolyModLoaderImpl implements PolyModLoader {
     return this.#polyModUrls;
   }
   /**
+   * Fetch a mod manifest (`manifest.json` / `version.json`) bypassing HTTP caches, so a newly
+   * published mod version is picked up on the next launch instead of whenever the browser or the
+   * CDN edge decides to revalidate its copy.
+   */
+  async #fetchFreshJson<T>(url: string): Promise<T> {
+    const freshUrl = `${url}${url.includes("?") ? "&" : "?"}pmlRefresh=${Date.now()}`;
+    const response = await fetch(freshUrl, { cache: "no-store" });
+    if (!response.ok) throw new Error(`HTTP ${response.status} for ${url}`);
+    return response.json();
+  }
+  /**
    * Add the mods bundled with this distribution ({@link BUNDLED_MODS}) to the mod list.
    *
    * Each bundled mod is only added once per browser profile, so removing it through the mod
@@ -983,7 +994,7 @@ class PolyModLoaderImpl implements PolyModLoader {
    */
   async addMod(polyModObject: { base: string, version: string, loaded: boolean }, autoUpdate: boolean) {
     try {
-      const manifestFile: GlobalManifest = await fetch(`${polyModObject.base}/manifest.json`).then(r => r.json());
+      const manifestFile: GlobalManifest = await this.#fetchFreshJson<GlobalManifest>(`${polyModObject.base}/manifest.json`);
       let latest = false;
       if (polyModObject.version === "latest") {
         polyModObject.version = manifestFile["latest"][this.#polyVersion];
@@ -994,7 +1005,7 @@ class PolyModLoaderImpl implements PolyModLoader {
           alert(`Mod with URL ${polyModObject.base} does not have a version which supports PolyTrack v${this.#polyVersion}.`);
       }
       const polyModUrl = `${polyModObject.base}/${polyModObject.version}`;
-      const versionFile: VersionManifest = await fetch(`${polyModUrl}/version.json`).then(r => r.json());
+      const versionFile: VersionManifest = await this.#fetchFreshJson<VersionManifest>(`${polyModUrl}/version.json`);
 
 
       const mod: ModManifest = { ...manifestFile, ...versionFile, version: polyModObject.version };

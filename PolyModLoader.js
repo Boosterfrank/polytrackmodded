@@ -26,7 +26,7 @@ var __classPrivateFieldSet = (this && this.__classPrivateFieldSet) || function (
     if (typeof state === "function" ? receiver !== state || !f : !state.has(receiver)) throw new TypeError("Cannot write private member to an object whose class did not declare it");
     return (kind === "a" ? f.call(receiver, value) : f ? f.value = value : state.set(receiver, value)), value;
 };
-var _PolyDBImpl_instances, _PolyDBImpl_db, _PolyDBImpl_getDb, _PolyModLoaderImpl_instances, _PolyModLoaderImpl_polyVersion, _PolyModLoaderImpl_allMods, _PolyModLoaderImpl_simWorkerMixins, _PolyModLoaderImpl_physicsMixins, _PolyModLoaderImpl_physicsWasmPatches, _PolyModLoaderImpl_chunkMixins, _PolyModLoaderImpl_settings, _PolyModLoaderImpl_settingElements, _PolyModLoaderImpl_settingConstructor, _PolyModLoaderImpl_defaultSettings, _PolyModLoaderImpl_latestSetting, _PolyModLoaderImpl_keybindings, _PolyModLoaderImpl_defaultBinds, _PolyModLoaderImpl_bindConstructor, _PolyModLoaderImpl_latestBinding, _PolyModLoaderImpl_pmlVersion, _PolyModLoaderImpl_backendUrl, _PolyModLoaderImpl_polyModUrls, _PolyModLoaderImpl_applyManifestToMod, _PolyModLoaderImpl_addBundledMods, _PolyModLoaderImpl_settingIndex, _PolyModLoaderImpl_appendToSettingsMenu, _PolyModLoaderImpl_appendToKeybindsMenu, _PolyModLoaderImpl_applySettings, _PolyModLoaderImpl_applyKeybinds, _PolyModLoaderImpl_preInitPML, _PolyModLoaderImpl_prePreInitPML, _PolyModLoaderImpl_registerDistributionMixins, _PolyModLoaderImpl_leb128Length, _PolyModLoaderImpl_encodeSignedLEB128, _PolyModLoaderImpl_applyPhysicsWasmPatch;
+var _PolyDBImpl_instances, _PolyDBImpl_db, _PolyDBImpl_getDb, _PolyModLoaderImpl_instances, _PolyModLoaderImpl_polyVersion, _PolyModLoaderImpl_allMods, _PolyModLoaderImpl_simWorkerMixins, _PolyModLoaderImpl_physicsMixins, _PolyModLoaderImpl_physicsWasmPatches, _PolyModLoaderImpl_chunkMixins, _PolyModLoaderImpl_settings, _PolyModLoaderImpl_settingElements, _PolyModLoaderImpl_settingConstructor, _PolyModLoaderImpl_defaultSettings, _PolyModLoaderImpl_latestSetting, _PolyModLoaderImpl_keybindings, _PolyModLoaderImpl_defaultBinds, _PolyModLoaderImpl_bindConstructor, _PolyModLoaderImpl_latestBinding, _PolyModLoaderImpl_pmlVersion, _PolyModLoaderImpl_backendUrl, _PolyModLoaderImpl_polyModUrls, _PolyModLoaderImpl_applyManifestToMod, _PolyModLoaderImpl_fetchFreshJson, _PolyModLoaderImpl_addBundledMods, _PolyModLoaderImpl_settingIndex, _PolyModLoaderImpl_appendToSettingsMenu, _PolyModLoaderImpl_appendToKeybindsMenu, _PolyModLoaderImpl_applySettings, _PolyModLoaderImpl_applyKeybinds, _PolyModLoaderImpl_preInitPML, _PolyModLoaderImpl_prePreInitPML, _PolyModLoaderImpl_registerDistributionMixins, _PolyModLoaderImpl_leb128Length, _PolyModLoaderImpl_encodeSignedLEB128, _PolyModLoaderImpl_applyPhysicsWasmPatch;
 // @ts-ignore
 import _semver from "./lib/semver.js";
 import { MixinType, PhysicsMixinType, SettingType } from "./PolyTypes.js";
@@ -755,7 +755,7 @@ class PolyModLoaderImpl {
             let mainManifestFile;
             try {
                 startFetchLatest();
-                mainManifestFile = await fetch(`${polyModObject.base}/manifest.json`).then(r => r.json());
+                mainManifestFile = await __classPrivateFieldGet(this, _PolyModLoaderImpl_instances, "m", _PolyModLoaderImpl_fetchFreshJson).call(this, `${polyModObject.base}/manifest.json`);
                 if (polyModObject.version === "latest") {
                     current.totalParts = 3;
                     polyModObject.version = mainManifestFile["latest"][__classPrivateFieldGet(this, _PolyModLoaderImpl_polyVersion, "f")];
@@ -784,7 +784,7 @@ class PolyModLoaderImpl {
                     manifestFile = dbMod.manifest;
                 }
                 else {
-                    let versionFile = await fetch(`${polyModUrl}/version.json`).then(r => r.json());
+                    let versionFile = await __classPrivateFieldGet(this, _PolyModLoaderImpl_instances, "m", _PolyModLoaderImpl_fetchFreshJson).call(this, `${polyModUrl}/version.json`);
                     manifestFile = {
                         name: mainManifestFile.name,
                         author: mainManifestFile.author,
@@ -897,7 +897,7 @@ class PolyModLoaderImpl {
      */
     async addMod(polyModObject, autoUpdate) {
         try {
-            const manifestFile = await fetch(`${polyModObject.base}/manifest.json`).then(r => r.json());
+            const manifestFile = await __classPrivateFieldGet(this, _PolyModLoaderImpl_instances, "m", _PolyModLoaderImpl_fetchFreshJson).call(this, `${polyModObject.base}/manifest.json`);
             let latest = false;
             if (polyModObject.version === "latest") {
                 polyModObject.version = manifestFile["latest"][__classPrivateFieldGet(this, _PolyModLoaderImpl_polyVersion, "f")];
@@ -908,7 +908,7 @@ class PolyModLoaderImpl {
                     alert(`Mod with URL ${polyModObject.base} does not have a version which supports PolyTrack v${__classPrivateFieldGet(this, _PolyModLoaderImpl_polyVersion, "f")}.`);
             }
             const polyModUrl = `${polyModObject.base}/${polyModObject.version}`;
-            const versionFile = await fetch(`${polyModUrl}/version.json`).then(r => r.json());
+            const versionFile = await __classPrivateFieldGet(this, _PolyModLoaderImpl_instances, "m", _PolyModLoaderImpl_fetchFreshJson).call(this, `${polyModUrl}/version.json`);
             const mod = { ...manifestFile, ...versionFile, version: polyModObject.version };
             if (this.getMod(mod.id)) {
                 alert("This mod is already present!");
@@ -1903,7 +1903,19 @@ class PolyModLoaderImpl {
         return originalChunkString;
     }
 }
-_PolyModLoaderImpl_polyVersion = new WeakMap(), _PolyModLoaderImpl_allMods = new WeakMap(), _PolyModLoaderImpl_simWorkerMixins = new WeakMap(), _PolyModLoaderImpl_physicsMixins = new WeakMap(), _PolyModLoaderImpl_physicsWasmPatches = new WeakMap(), _PolyModLoaderImpl_chunkMixins = new WeakMap(), _PolyModLoaderImpl_settings = new WeakMap(), _PolyModLoaderImpl_settingElements = new WeakMap(), _PolyModLoaderImpl_settingConstructor = new WeakMap(), _PolyModLoaderImpl_defaultSettings = new WeakMap(), _PolyModLoaderImpl_latestSetting = new WeakMap(), _PolyModLoaderImpl_keybindings = new WeakMap(), _PolyModLoaderImpl_defaultBinds = new WeakMap(), _PolyModLoaderImpl_bindConstructor = new WeakMap(), _PolyModLoaderImpl_latestBinding = new WeakMap(), _PolyModLoaderImpl_pmlVersion = new WeakMap(), _PolyModLoaderImpl_backendUrl = new WeakMap(), _PolyModLoaderImpl_polyModUrls = new WeakMap(), _PolyModLoaderImpl_applyManifestToMod = new WeakMap(), _PolyModLoaderImpl_settingIndex = new WeakMap(), _PolyModLoaderImpl_instances = new WeakSet(), _PolyModLoaderImpl_addBundledMods = function _PolyModLoaderImpl_addBundledMods(reset) {
+_PolyModLoaderImpl_polyVersion = new WeakMap(), _PolyModLoaderImpl_allMods = new WeakMap(), _PolyModLoaderImpl_simWorkerMixins = new WeakMap(), _PolyModLoaderImpl_physicsMixins = new WeakMap(), _PolyModLoaderImpl_physicsWasmPatches = new WeakMap(), _PolyModLoaderImpl_chunkMixins = new WeakMap(), _PolyModLoaderImpl_settings = new WeakMap(), _PolyModLoaderImpl_settingElements = new WeakMap(), _PolyModLoaderImpl_settingConstructor = new WeakMap(), _PolyModLoaderImpl_defaultSettings = new WeakMap(), _PolyModLoaderImpl_latestSetting = new WeakMap(), _PolyModLoaderImpl_keybindings = new WeakMap(), _PolyModLoaderImpl_defaultBinds = new WeakMap(), _PolyModLoaderImpl_bindConstructor = new WeakMap(), _PolyModLoaderImpl_latestBinding = new WeakMap(), _PolyModLoaderImpl_pmlVersion = new WeakMap(), _PolyModLoaderImpl_backendUrl = new WeakMap(), _PolyModLoaderImpl_polyModUrls = new WeakMap(), _PolyModLoaderImpl_applyManifestToMod = new WeakMap(), _PolyModLoaderImpl_settingIndex = new WeakMap(), _PolyModLoaderImpl_instances = new WeakSet(), _PolyModLoaderImpl_fetchFreshJson = 
+/**
+ * Fetch a mod manifest (`manifest.json` / `version.json`) bypassing HTTP caches, so a newly
+ * published mod version is picked up on the next launch instead of whenever the browser or the
+ * CDN edge decides to revalidate its copy.
+ */
+async function _PolyModLoaderImpl_fetchFreshJson(url) {
+    const freshUrl = `${url}${url.includes("?") ? "&" : "?"}pmlRefresh=${Date.now()}`;
+    const response = await fetch(freshUrl, { cache: "no-store" });
+    if (!response.ok)
+        throw new Error(`HTTP ${response.status} for ${url}`);
+    return response.json();
+}, _PolyModLoaderImpl_addBundledMods = function _PolyModLoaderImpl_addBundledMods(reset) {
     if (!__classPrivateFieldGet(this, _PolyModLoaderImpl_polyModUrls, "f"))
         return false;
     const sameBase = (a, b) => a.replace(/\/+$/, "") === b.replace(/\/+$/, "");
