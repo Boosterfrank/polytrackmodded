@@ -26,7 +26,7 @@ var __classPrivateFieldSet = (this && this.__classPrivateFieldSet) || function (
     if (typeof state === "function" ? receiver !== state || !f : !state.has(receiver)) throw new TypeError("Cannot write private member to an object whose class did not declare it");
     return (kind === "a" ? f.call(receiver, value) : f ? f.value = value : state.set(receiver, value)), value;
 };
-var _PolyDBImpl_instances, _PolyDBImpl_db, _PolyDBImpl_getDb, _PolyModLoaderImpl_instances, _PolyModLoaderImpl_polyVersion, _PolyModLoaderImpl_allMods, _PolyModLoaderImpl_simWorkerMixins, _PolyModLoaderImpl_physicsMixins, _PolyModLoaderImpl_physicsWasmPatches, _PolyModLoaderImpl_chunkMixins, _PolyModLoaderImpl_settings, _PolyModLoaderImpl_settingElements, _PolyModLoaderImpl_settingConstructor, _PolyModLoaderImpl_defaultSettings, _PolyModLoaderImpl_latestSetting, _PolyModLoaderImpl_keybindings, _PolyModLoaderImpl_defaultBinds, _PolyModLoaderImpl_bindConstructor, _PolyModLoaderImpl_latestBinding, _PolyModLoaderImpl_pmlVersion, _PolyModLoaderImpl_backendUrl, _PolyModLoaderImpl_polyModUrls, _PolyModLoaderImpl_applyManifestToMod, _PolyModLoaderImpl_addBundledMods, _PolyModLoaderImpl_settingIndex, _PolyModLoaderImpl_appendToSettingsMenu, _PolyModLoaderImpl_appendToKeybindsMenu, _PolyModLoaderImpl_applySettings, _PolyModLoaderImpl_applyKeybinds, _PolyModLoaderImpl_preInitPML, _PolyModLoaderImpl_prePreInitPML, _PolyModLoaderImpl_registerDistributionMixins, _PolyModLoaderImpl_leb128Length, _PolyModLoaderImpl_encodeSignedLEB128, _PolyModLoaderImpl_applyPhysicsWasmPatch;
+var _PolyDBImpl_instances, _PolyDBImpl_db, _PolyDBImpl_getDb, _PolyModLoaderImpl_instances, _PolyModLoaderImpl_polyVersion, _PolyModLoaderImpl_allMods, _PolyModLoaderImpl_simWorkerMixins, _PolyModLoaderImpl_physicsMixins, _PolyModLoaderImpl_physicsWasmPatches, _PolyModLoaderImpl_chunkMixins, _PolyModLoaderImpl_settings, _PolyModLoaderImpl_settingElements, _PolyModLoaderImpl_settingConstructor, _PolyModLoaderImpl_defaultSettings, _PolyModLoaderImpl_latestSetting, _PolyModLoaderImpl_keybindings, _PolyModLoaderImpl_defaultBinds, _PolyModLoaderImpl_bindConstructor, _PolyModLoaderImpl_latestBinding, _PolyModLoaderImpl_pmlVersion, _PolyModLoaderImpl_backendUrl, _PolyModLoaderImpl_importModCode, _PolyModLoaderImpl_polyModUrls, _PolyModLoaderImpl_applyManifestToMod, _PolyModLoaderImpl_addBundledMods, _PolyModLoaderImpl_settingIndex, _PolyModLoaderImpl_appendToSettingsMenu, _PolyModLoaderImpl_appendToKeybindsMenu, _PolyModLoaderImpl_applySettings, _PolyModLoaderImpl_applyKeybinds, _PolyModLoaderImpl_preInitPML, _PolyModLoaderImpl_prePreInitPML, _PolyModLoaderImpl_registerDistributionMixins, _PolyModLoaderImpl_leb128Length, _PolyModLoaderImpl_encodeSignedLEB128, _PolyModLoaderImpl_applyPhysicsWasmPatch;
 // @ts-ignore
 import _semver from "./lib/semver.js";
 import { MixinType, PhysicsMixinType, SettingType } from "./PolyTypes.js";
@@ -168,6 +168,25 @@ const BUNDLED_MODS = [
 ];
 /** localStorage key remembering which bundled mods have already been added to the mod list. */
 const BUNDLED_MODS_STORAGE_KEY = "pmlBundledMods";
+/**
+ * PolyTrack versions whose mods may be installed on this build, most preferred first. The current
+ * version comes first; the older ones are offered with a disclaimer because such mods may not work.
+ */
+const COMPATIBLE_GAME_VERSIONS = ["0.6.3", "0.6.2", "0.6.1", "0.6.0"];
+/**
+ * Source patches applied to a mod's code before it is imported, keyed by mod id. PML Core's mod
+ * library only offers mods that list the current game version; these make it use the loader's
+ * compatibility rules instead (see {@link COMPATIBLE_GAME_VERSIONS}). A patch whose text is not
+ * found is skipped with a warning, so a newer PML Core still loads.
+ */
+const MOD_SOURCE_PATCHES = {
+    pmlcore: [
+        { from: "!modVersions.includes(this.gameVersion)", to: "!modVersions.some(v => window.polyModLoader.isCompatibleGameVersion(v))" },
+        { from: "version.game_version === this.gameVersion", to: "window.polyModLoader.isCompatibleGameVersion(version.game_version)" },
+        { from: "JSON.parse(mod.latest)[this.gameVersion]", to: "window.polyModLoader.pickLatestVersion(JSON.parse(mod.latest))" },
+        { from: "!JSON.parse(version.game_versions).includes(this.gameVersion)", to: "!JSON.parse(version.game_versions).some(v => window.polyModLoader.isCompatibleGameVersion(v))" }
+    ]
+};
 /**
  * Picks the base URL the game uses for leaderboards, user profiles and multiplayer signaling.
  *
@@ -569,6 +588,27 @@ class PolyModLoaderImpl {
             return url;
         return (__classPrivateFieldGet(this, _PolyModLoaderImpl_backendUrl, "f") + url.slice(OFFICIAL_BACKEND_URL.length));
     }
+    /** PolyTrack versions whose mods can be installed on this build, most preferred first. */
+    get compatibleGameVersions() {
+        return [...COMPATIBLE_GAME_VERSIONS];
+    }
+    /** Whether mods made for PolyTrack `gameVersion` can be installed on this build. */
+    isCompatibleGameVersion(gameVersion) {
+        return COMPATIBLE_GAME_VERSIONS.includes(gameVersion);
+    }
+    /**
+     * Pick the mod version to use from a global manifest's `latest` map: the entry for the current
+     * game version, else the entry for the newest compatible older version, else `undefined`.
+     */
+    pickLatestVersion(latest) {
+        if (!latest || typeof latest !== "object")
+            return undefined;
+        for (const gameVersion of COMPATIBLE_GAME_VERSIONS) {
+            if (typeof latest[gameVersion] === "string" && latest[gameVersion])
+                return latest[gameVersion];
+        }
+        return undefined;
+    }
     initStorage(localStorage) {
         this.localStorage = localStorage;
         this.polyDb = new PolyDBImpl(this);
@@ -740,7 +780,7 @@ class PolyModLoaderImpl {
                 mainManifestFile = await fetch(`${polyModObject.base}/manifest.json`).then(r => r.json());
                 if (polyModObject.version === "latest") {
                     current.totalParts = 3;
-                    polyModObject.version = mainManifestFile["latest"][__classPrivateFieldGet(this, _PolyModLoaderImpl_polyVersion, "f")];
+                    polyModObject.version = this.pickLatestVersion(mainManifestFile["latest"]);
                     latest = true;
                 }
             }
@@ -777,7 +817,7 @@ class PolyModLoaderImpl {
                 }
                 startFetchModMain(manifestFile.main);
                 try {
-                    const modImport = await import(importFromDB && dbMod ? URL.createObjectURL(new Blob([dbMod.codeStr], { type: "application/javascript" })) : `${polyModUrl}/${manifestFile.main}`);
+                    const modImport = await __classPrivateFieldGet(this, _PolyModLoaderImpl_instances, "m", _PolyModLoaderImpl_importModCode).call(this, manifestFile.id, importFromDB && dbMod ? { code: dbMod.codeStr } : { url: `${polyModUrl}/${manifestFile.main}` });
                     let newMod = modImport.polyMod;
                     if (this.getMod(manifestFile.id))
                         alert(`Duplicate mod detected: ${manifestFile.name}`);
@@ -789,7 +829,7 @@ class PolyModLoaderImpl {
                     newMod.savedLatest = latest;
                     newMod.iconSrc = `${polyModUrl}/icon.png`;
                     if (!newMod.manifest.targets.includes(__classPrivateFieldGet(this, _PolyModLoaderImpl_polyVersion, "f"))) {
-                        console.warn(`Mod ${manifestFile.name} does not support PolyModLoader version ${__classPrivateFieldGet(this, _PolyModLoaderImpl_polyVersion, "f")}, this might lead to errors.`);
+                        console.warn(`Mod ${manifestFile.name} was made for PolyTrack ${newMod.manifest.targets.join(", ")}, not ${__classPrivateFieldGet(this, _PolyModLoaderImpl_polyVersion, "f")}; it may not work correctly.`);
                     }
                     if (polyModObject.loaded) {
                         newMod.setLoaded = true;
@@ -882,12 +922,14 @@ class PolyModLoaderImpl {
             const manifestFile = await fetch(`${polyModObject.base}/manifest.json`).then(r => r.json());
             let latest = false;
             if (polyModObject.version === "latest") {
-                polyModObject.version = manifestFile["latest"][__classPrivateFieldGet(this, _PolyModLoaderImpl_polyVersion, "f")];
+                polyModObject.version = this.pickLatestVersion(manifestFile["latest"]);
                 if (autoUpdate) {
                     latest = true;
                 }
-                if (polyModObject.version === "latest" || !polyModObject.version)
-                    alert(`Mod with URL ${polyModObject.base} does not have a version which supports PolyTrack v${__classPrivateFieldGet(this, _PolyModLoaderImpl_polyVersion, "f")}.`);
+                if (polyModObject.version === "latest" || !polyModObject.version) {
+                    alert(`Mod with URL ${polyModObject.base} does not have a version for PolyTrack ${__classPrivateFieldGet(this, _PolyModLoaderImpl_polyVersion, "f")} or any supported older version (${COMPATIBLE_GAME_VERSIONS.join(", ")}).`);
+                    return;
+                }
             }
             const polyModUrl = `${polyModObject.base}/${polyModObject.version}`;
             const versionFile = await fetch(`${polyModUrl}/version.json`).then(r => r.json());
@@ -896,13 +938,21 @@ class PolyModLoaderImpl {
                 alert("This mod is already present!");
                 return;
             }
-            if (mod.targets.indexOf(__classPrivateFieldGet(this, _PolyModLoaderImpl_polyVersion, "f")) === -1) {
+            const targets = Array.isArray(mod.targets) ? mod.targets : [];
+            if (!targets.some(target => this.isCompatibleGameVersion(target))) {
                 alert(`Mod target version does not match polytrack version!
-                    Note: ${mod.name} version ${polyModObject.version} targets polytrack versions ${mod.targets.join(', ')}, but current polytrack version is ${__classPrivateFieldGet(this, _PolyModLoaderImpl_polyVersion, "f")}.`);
+                    Note: ${mod.name} version ${polyModObject.version} targets polytrack versions ${targets.join(', ')}, but this build only supports mods for PolyTrack ${COMPATIBLE_GAME_VERSIONS.join(', ')}.`);
                 return;
             }
+            if (!targets.includes(__classPrivateFieldGet(this, _PolyModLoaderImpl_polyVersion, "f"))) {
+                const proceed = confirm(`${mod.name} ${polyModObject.version} was made for PolyTrack ${targets.join(", ")}, not for the version you are playing (${__classPrivateFieldGet(this, _PolyModLoaderImpl_polyVersion, "f")}).\n\n` +
+                    `Mods for older versions of PolyTrack may not work correctly and can break the game or your multiplayer sessions. ` +
+                    `If that happens, remove the mod again from the Mods menu.\n\nInstall it anyway?`);
+                if (!proceed)
+                    return;
+            }
             try {
-                const modImport = await import(`${polyModUrl}/${mod.main}`);
+                const modImport = await __classPrivateFieldGet(this, _PolyModLoaderImpl_instances, "m", _PolyModLoaderImpl_importModCode).call(this, mod.id, { url: `${polyModUrl}/${mod.main}` });
                 let newMod = modImport.polyMod;
                 newMod.iconSrc = `${polyModUrl}/icon.png`;
                 mod.version = polyModObject.version;
@@ -1885,7 +1935,35 @@ class PolyModLoaderImpl {
         return originalChunkString;
     }
 }
-_PolyModLoaderImpl_polyVersion = new WeakMap(), _PolyModLoaderImpl_allMods = new WeakMap(), _PolyModLoaderImpl_simWorkerMixins = new WeakMap(), _PolyModLoaderImpl_physicsMixins = new WeakMap(), _PolyModLoaderImpl_physicsWasmPatches = new WeakMap(), _PolyModLoaderImpl_chunkMixins = new WeakMap(), _PolyModLoaderImpl_settings = new WeakMap(), _PolyModLoaderImpl_settingElements = new WeakMap(), _PolyModLoaderImpl_settingConstructor = new WeakMap(), _PolyModLoaderImpl_defaultSettings = new WeakMap(), _PolyModLoaderImpl_latestSetting = new WeakMap(), _PolyModLoaderImpl_keybindings = new WeakMap(), _PolyModLoaderImpl_defaultBinds = new WeakMap(), _PolyModLoaderImpl_bindConstructor = new WeakMap(), _PolyModLoaderImpl_latestBinding = new WeakMap(), _PolyModLoaderImpl_pmlVersion = new WeakMap(), _PolyModLoaderImpl_backendUrl = new WeakMap(), _PolyModLoaderImpl_polyModUrls = new WeakMap(), _PolyModLoaderImpl_applyManifestToMod = new WeakMap(), _PolyModLoaderImpl_settingIndex = new WeakMap(), _PolyModLoaderImpl_instances = new WeakSet(), _PolyModLoaderImpl_addBundledMods = function _PolyModLoaderImpl_addBundledMods(reset) {
+_PolyModLoaderImpl_polyVersion = new WeakMap(), _PolyModLoaderImpl_allMods = new WeakMap(), _PolyModLoaderImpl_simWorkerMixins = new WeakMap(), _PolyModLoaderImpl_physicsMixins = new WeakMap(), _PolyModLoaderImpl_physicsWasmPatches = new WeakMap(), _PolyModLoaderImpl_chunkMixins = new WeakMap(), _PolyModLoaderImpl_settings = new WeakMap(), _PolyModLoaderImpl_settingElements = new WeakMap(), _PolyModLoaderImpl_settingConstructor = new WeakMap(), _PolyModLoaderImpl_defaultSettings = new WeakMap(), _PolyModLoaderImpl_latestSetting = new WeakMap(), _PolyModLoaderImpl_keybindings = new WeakMap(), _PolyModLoaderImpl_defaultBinds = new WeakMap(), _PolyModLoaderImpl_bindConstructor = new WeakMap(), _PolyModLoaderImpl_latestBinding = new WeakMap(), _PolyModLoaderImpl_pmlVersion = new WeakMap(), _PolyModLoaderImpl_backendUrl = new WeakMap(), _PolyModLoaderImpl_polyModUrls = new WeakMap(), _PolyModLoaderImpl_applyManifestToMod = new WeakMap(), _PolyModLoaderImpl_settingIndex = new WeakMap(), _PolyModLoaderImpl_instances = new WeakSet(), _PolyModLoaderImpl_importModCode = 
+/**
+ * Import a mod's main module, applying {@link MOD_SOURCE_PATCHES} for the mod first if any.
+ *
+ * @param modId - The mod id from its manifest.
+ * @param source - Either the module URL, or the module code from the mod cache (string or Blob).
+ */
+async function _PolyModLoaderImpl_importModCode(modId, source) {
+    const patches = MOD_SOURCE_PATCHES[modId];
+    if (!patches) {
+        return import("url" in source ? source.url : URL.createObjectURL(new Blob([source.code], { type: "application/javascript" })));
+    }
+    let code;
+    if ("url" in source) {
+        code = await fetch(source.url).then(r => { if (!r.ok)
+            throw new Error(`HTTP ${r.status}`); return r.text(); });
+    }
+    else {
+        code = typeof source.code === "string" ? source.code : await source.code.text();
+    }
+    for (const patch of patches) {
+        if (!code.includes(patch.from)) {
+            console.warn(`[PML] Source patch for mod ${modId} not applied, text not found:`, patch.from);
+            continue;
+        }
+        code = code.split(patch.from).join(patch.to);
+    }
+    return import(URL.createObjectURL(new Blob([code], { type: "application/javascript" })));
+}, _PolyModLoaderImpl_addBundledMods = function _PolyModLoaderImpl_addBundledMods(reset) {
     if (!__classPrivateFieldGet(this, _PolyModLoaderImpl_polyModUrls, "f"))
         return false;
     const sameBase = (a, b) => a.replace(/\/+$/, "") === b.replace(/\/+$/, "");

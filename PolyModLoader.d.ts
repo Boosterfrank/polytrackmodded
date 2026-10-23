@@ -46,6 +46,17 @@ declare class PolyModLoaderImpl implements PolyModLoader {
      * Other URLs are returned unchanged.
      */
     rewriteBackendUrl<T>(url: T): T;
+    /** PolyTrack versions whose mods can be installed on this build, most preferred first. */
+    get compatibleGameVersions(): string[];
+    /** Whether mods made for PolyTrack `gameVersion` can be installed on this build. */
+    isCompatibleGameVersion(gameVersion: string): boolean;
+    /**
+     * Pick the mod version to use from a global manifest's `latest` map: the entry for the current
+     * game version, else the entry for the newest compatible older version, else `undefined`.
+     */
+    pickLatestVersion(latest: {
+        [gameVersion: string]: string;
+    } | undefined): string | undefined;
     localStorage: Storage | undefined;
     initStorage(localStorage: Storage): void;
     importMods(): Promise<void>;

@@ -110,6 +110,12 @@ export interface PolyModLoader {
     get backendUrl(): string;
     /** Map a URL on PolyTrack's official backend onto {@link backendUrl}; other URLs are returned unchanged. */
     rewriteBackendUrl<T>(url: T): T;
+    /** PolyTrack versions whose mods can be installed on this build, most preferred first. */
+    get compatibleGameVersions(): string[];
+    /** Whether mods made for PolyTrack `gameVersion` can be installed on this build. */
+    isCompatibleGameVersion(gameVersion: string): boolean;
+    /** The mod version to use from a global manifest's `latest` map, preferring the current game version. */
+    pickLatestVersion(latest: { [gameVersion: string]: string } | undefined): string | undefined;
     
     initStorage(localStorage: Storage): void;
     importMods(): Promise<void>;
