@@ -84,6 +84,10 @@ export interface PolyDB {
         codeStr: Blob;
     } | null>;
     saveMod(baseUrl: string, version: string, manifest: ModManifest | undefined): Promise<unknown>;
+    /** Close the mod cache database. */
+    close(): void;
+    /** Delete the mod cache database. */
+    deleteDatabase(): Promise<void>;
 }
 export interface PolyModLoader {
     polyDb: PolyDB;
@@ -98,6 +102,8 @@ export interface PolyModLoader {
     get backendUrl(): string;
     /** Map a URL on PolyTrack's official backend onto {@link backendUrl}; other URLs are returned unchanged. */
     rewriteBackendUrl<T>(url: T): T;
+    /** Remove all mods and cached mod code, refresh the game's cached files and (by default) reload. */
+    resetModsAndCache(reload?: boolean): Promise<void>;
     initStorage(localStorage: Storage): void;
     importMods(): Promise<void>;
     getPolyModsStorage(): {

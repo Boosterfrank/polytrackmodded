@@ -54,6 +54,15 @@ declare class PolyModLoaderImpl implements PolyModLoader {
         version: string;
         loaded: boolean;
     }[] | undefined;
+    /**
+     * Reset everything PolyModLoader stores for this profile and refresh the game's cached files:
+     * the mod list (the bundled mods come back on the next launch), the mod code cache, any Cache
+     * Storage entries and service workers, and the browser's cached copies of the game's own scripts.
+     * Player data (profiles, records, settings, tracks) is left alone.
+     *
+     * @param reload - Reload the page afterwards (default). Pass `false` to only clear.
+     */
+    resetModsAndCache(reload?: boolean): Promise<void>;
     serializeMod(mod: PolyMod): {
         base: string;
         version: string;

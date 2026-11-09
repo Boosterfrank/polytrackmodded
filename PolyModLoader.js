@@ -160,12 +160,6 @@ const BUNDLED_MODS = [
         loaded: true
     },
     {
-        // PolyCup: live cups for 2 to 8 racers in multiplayer lobbies - https://github.com/Prawnfoot05/PolyCup
-        base: "https://cdn.polymodloader.com/gh/Prawnfoot05/PolyCup/main/dist",
-        version: "latest",
-        loaded: true
-    },
-    {
         // Car Switcher (0.6.3 port of Orangy's mod); the car packs below depend on it, so it comes first.
         base: "https://cdn.polymodloader.com/gh/boosterfrank/polymultiplayer/main/mods/carswitcher",
         version: "latest",
@@ -355,6 +349,11 @@ class PolyDBImpl {
             }
         }
     }
+    /** Close the mod cache database (needed before it can be deleted). */
+    close() {
+        __classPrivateFieldGet(this, _PolyDBImpl_db, "f")?.close();
+        __classPrivateFieldSet(this, _PolyDBImpl_db, undefined, "f");
+    }
     async getMod(baseUrl) {
         let localDb = await __classPrivateFieldGet(this, _PolyDBImpl_instances, "m", _PolyDBImpl_getDb).call(this);
         return await new Promise((resolve, reject) => {
@@ -371,6 +370,16 @@ class PolyDBImpl {
             ;
             request.onsuccess = () => resolve(request?.result || null);
             request.onerror = () => reject(null);
+        });
+    }
+    /** Delete the mod cache database. Resolves once it is gone (or when deleting it is blocked). */
+    deleteDatabase() {
+        this.close();
+        return new Promise(resolve => {
+            const request = window.indexedDB.deleteDatabase("PMLMods");
+            request.onsuccess = () => resolve();
+            request.onerror = () => { console.error("[PML] Couldn't delete the mod cache:", request.error); resolve(); };
+            request.onblocked = () => { console.warn("[PML] Deleting the mod cache is blocked by another tab; it is removed once that tab closes."); resolve(); };
         });
     }
     async saveMod(baseUrl, version, manifest) {
@@ -517,9 +526,10 @@ class PolyModLoaderImpl {
                 token: `c.appendChild(i));`,
                 func: `const clearMods = document.createElement("button");
         ((clearMods.className = "button"),
-          (clearMods.textContent = "Clear PML Mods"),
+          (clearMods.textContent = "Reset PML mods and cache"),
           clearMods.addEventListener("click", () => {
-            window.localStorage.removeItem("polyMods");
+            if (window.polyModLoader?.resetModsAndCache) window.polyModLoader.resetModsAndCache();
+            else { window.localStorage.removeItem("polyMods"); window.localStorage.removeItem("pmlBundledMods"); location.reload(); }
           }),
           c.appendChild(clearMods));
         `
@@ -852,6 +862,47 @@ class PolyModLoaderImpl {
             this.localStorage?.setItem("polyMods", JSON.stringify(__classPrivateFieldGet(this, _PolyModLoaderImpl_polyModUrls, "f")));
         }
         return __classPrivateFieldGet(this, _PolyModLoaderImpl_polyModUrls, "f");
+    }
+    /**
+     * Reset everything PolyModLoader stores for this profile and refresh the game's cached files:
+     * the mod list (the bundled mods come back on the next launch), the mod code cache, any Cache
+     * Storage entries and service workers, and the browser's cached copies of the game's own scripts.
+     * Player data (profiles, records, settings, tracks) is left alone.
+     *
+     * @param reload - Reload the page afterwards (default). Pass `false` to only clear.
+     */
+    async resetModsAndCache(reload = true) {
+        console.log("[PML] Resetting mods and caches");
+        this.localStorage?.removeItem("polyMods");
+        this.localStorage?.removeItem(BUNDLED_MODS_STORAGE_KEY);
+        try {
+            await this.polyDb.deleteDatabase();
+        }
+        catch (err) {
+            console.error("[PML] Couldn't delete the mod cache:", err);
+        }
+        try {
+            if (typeof caches !== "undefined")
+                for (const key of await caches.keys())
+                    await caches.delete(key);
+        }
+        catch (err) {
+            console.warn("[PML] Couldn't clear Cache Storage:", err);
+        }
+        try {
+            if (navigator.serviceWorker)
+                for (const registration of await navigator.serviceWorker.getRegistrations())
+                    await registration.unregister();
+        }
+        catch (err) {
+            console.warn("[PML] Couldn't unregister service workers:", err);
+        }
+        // Re-download the game's own files so the browser's HTTP cache holds the current versions.
+        const coreFiles = ["", "pml-config.js", "PolyModLoader.js", "PolyTypes.js", "main.bundle.js", "error_screen.bundle.js",
+            "simulation_worker.bundle.js", "lib/polytrack_physics.js", "polytrack_physics.wasm", "manifest.json"];
+        await Promise.allSettled(coreFiles.map(file => fetch(new URL(file, document.baseURI).href, { cache: "reload", signal: AbortSignal.timeout(20000) }).catch(err => console.warn(`[PML] Couldn't refresh ${file}:`, err))));
+        if (reload)
+            location.reload();
     }
     serializeMod(mod) {
         return { "base": mod.baseUrl ? mod.baseUrl : "", "version": mod.savedLatest ? "latest" : mod.modVersion ? mod.modVersion : "latest", "loaded": mod.isLoaded || false };
@@ -2015,7 +2066,11 @@ async function _PolyModLoaderImpl_fetchGlobalManifest(base) {
     // register PML settings
     this.registerSettingCategory("PolyModLoader");
     this.registerSetting("Cache mods (requires reload)", "pmlCacheMods", SettingType.BOOL, true);
-    this.addCustomClickableButtons("Quick actions", [{ text: "Click me!", callback: () => { alert("button clicked!"); } }, { text: "Clear PolyMods", callback: () => { this.localStorage?.removeItem("polyMods"); } }]);
+    this.addCustomClickableButtons("Reset mods and cache", [{ text: "Reset and reload", callback: () => {
+                if (confirm("Reset PolyModLoader?\n\nThis removes all installed mods (the mods that come with this build are installed again), clears the mod cache and the game's cached files, and reloads the game.\n\nYour profiles, records, settings and tracks are kept.")) {
+                    this.resetModsAndCache().catch(err => { console.error("[PML] Reset failed:", err); location.reload(); });
+                }
+            } }]);
     this.registerSimWorkerMixin({ type: MixinType.INSERT, token: `.TestDeterminism: {`, func: `console.log("SIM WORKER TESTING DETERMINISM");console.log(t);` });
     this.registerSimWorkerMixin({
         type: MixinType.REPLACEBETWEEN,

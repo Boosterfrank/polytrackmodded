@@ -1,6 +1,6 @@
-# PolyModLoader – PolyRanked + PolyCup edition with car packs
+# PolyModLoader – PolyRanked edition with car packs
 
-A fork of [PolyModLoader](https://git.polymodloader.com/polytrackmods/PolyModLoader) (the community mod loader for [PolyTrack](https://www.crazygames.com/game/polytrack) 0.6.3) that comes with [PolyRanked](https://github.com/boosterfrank/polymultiplayer) and [PolyCup](https://github.com/Prawnfoot05/PolyCup) installed and opens the garage instead of the tutorial on first launch.
+A fork of [PolyModLoader](https://git.polymodloader.com/polytrackmods/PolyModLoader) (the community mod loader for [PolyTrack](https://www.crazygames.com/game/polytrack) 0.6.3) that comes with [PolyRanked](https://github.com/boosterfrank/polymultiplayer) and a set of car mods installed and opens the garage instead of the tutorial on first launch.
 
 **Disclaimer: the PolyModLoader team is only responsible for the files in `src/` and their compiled versions, the rest is part of / modified files from [PolyTrack](https://www.crazygames.com/game/polytrack).**
 
@@ -8,9 +8,11 @@ A fork of [PolyModLoader](https://git.polymodloader.com/polytrackmods/PolyModLoa
 
 ## What is different from upstream
 
-- **PolyRanked, PolyCup and the car packs are installed automatically.** Every new player's mod list starts with PML Core, PolyRanked (`https://cdn.polymodloader.com/gh/boosterfrank/polymultiplayer/main`), PolyCup (`https://cdn.polymodloader.com/gh/Prawnfoot05/PolyCup/main/dist`), Car Switcher, Cool Cars and Goofy Cars (`https://cdn.polymodloader.com/gh/boosterfrank/polymultiplayer/main/mods/carswitcher`, `.../mods/coolcars`, `.../mods/goofycars`; the car packs depend on Car Switcher), each at the latest version for PolyTrack 0.6.3, exactly as if the URLs had been added through *Mods > Add*. A player who already had a mod list gets each bundled mod added once; removing one through the mod library sticks, and clearing the mod list brings them back. A mod this build stops bundling is removed again from profiles where it had been added automatically. The bundled mods are listed in `BUNDLED_MODS` in `src/PolyModLoader.ts`; pin a version there instead of `latest` if every player must run one exact build.
+- **PolyRanked and the car packs are installed automatically.** Every new player's mod list starts with PML Core, PolyRanked (`https://cdn.polymodloader.com/gh/boosterfrank/polymultiplayer/main`), Car Switcher, Cool Cars and Goofy Cars (`https://cdn.polymodloader.com/gh/boosterfrank/polymultiplayer/main/mods/carswitcher`, `.../mods/coolcars`, `.../mods/goofycars`; the car packs depend on Car Switcher), each at the latest version for PolyTrack 0.6.3, exactly as if the URLs had been added through *Mods > Add*. A player who already had a mod list gets each bundled mod added once; removing one through the mod library sticks, and clearing the mod list brings them back. A mod this build stops bundling (PolyCup, for instance) is removed again from profiles where it had been added automatically. The bundled mods are listed in `BUNDLED_MODS` in `src/PolyModLoader.ts`; pin a version there instead of `latest` if every player must run one exact build.
 - **Garage instead of the tutorial.** PolyTrack drops new players into the tutorial track on first launch. This build opens the garage instead and marks the tutorial as completed, so later launches go straight to the main menu.
 - **Backend proxy for leaderboards and multiplayer.** PolyTrack's backend (`vps.kodub.com`) only answers requests whose `Origin` header is one of the game's own origins. The desktop app handles that by rewriting the header (`electron/main.js`). A web build on another domain cannot, so this fork looks for a same-origin proxy at `./api/` when the page loads and, if it answers, routes leaderboard, profile and multiplayer-signaling traffic (including the signaling WebSockets) through it. `functions/api/[[path]].js` is that proxy as a Cloudflare Pages Function. Without a proxy the game talks to the official backend directly, which works on the desktop app and on origins kodub allows.
+
+- **Reset button.** *Settings → PolyModLoader → Reset and reload* removes all mods (the bundled ones come back on the next launch), deletes the mod cache and the game's cached files, and reloads. Profiles, records, settings and tracks are kept. The same reset is offered on the error screen.
 
 Everything else (mod library, settings, keybinds, mixin API, desktop packaging) is unchanged from upstream.
 
@@ -47,11 +49,9 @@ Any static web server works; for local development run `npm install` and `npm ru
 
 Unchanged from upstream: `npm install`, then `npm run start-app` to run or `npm run package-win`, `package-mac`, `package-linux` to build. The desktop app always uses the official backend directly.
 
-## Playing PolyRanked and PolyCup
+## Playing PolyRanked
 
-PolyRanked adds a **Ranked** button next to *Multiplayer* in the main menu (shortcut F7). Open *Settings* inside it, enter the address of a PolyRanked server and save, then pick a queue. Ranked requires vanilla physics, so no loaded mod may touch the physics. See the [PolyRanked README](https://github.com/boosterfrank/polymultiplayer#readme) for the match formats and the server.
-
-For PolyCup, host a multiplayer lobby (*Multiplayer → Host*), then open PolyCup with the trophy button in the toolbar or **F8**. Create a cup, share the lobby code, and let the other racers join. All players need the same PolyCup version; this build keeps it on the latest release, which PolyCup's own version check enforces when someone joins. See the [PolyCup README](https://github.com/Prawnfoot05/PolyCup#readme) for the rules and controls.
+PolyRanked adds a **Ranked** button next to *Multiplayer* in the main menu (shortcut F7). Open *Settings* inside it, enter the address of a PolyRanked server and save, then pick a queue. Ranked requires vanilla physics, so no loaded mod may touch the physics. See the [PolyRanked README](https://github.com/boosterfrank/polymultiplayer#readme) for the match formats and the server. Other mods, PolyCup included, can still be installed from the mod library.
 
 ## Development
 
